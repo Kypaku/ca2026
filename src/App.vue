@@ -16,6 +16,12 @@ import CellularAutomatonExplorer from './components/CellularAutomatonExplorer.vu
   padding: 1.5rem;
   text-align: left;
 }
+@media (min-width: 1400px) {
+  .app-shell {
+    max-width: none;
+    padding: 1.5rem 2rem;
+  }
+}
 h1 {
   font-size: 1.6em;
   margin-bottom: 1rem;

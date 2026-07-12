@@ -27,6 +27,33 @@
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
+.ca-layout {
+  display: block;
+}
+.ca-main,
+.ca-side {
+  min-width: 0;
+}
+@media (min-width: 1400px) {
+  .ca-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 480px);
+    align-items: start;
+    gap: 20px;
+  }
+  .ca-main {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .ca-side {
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+}
 .ca-panel {
   display: flex;
   gap: 12px;

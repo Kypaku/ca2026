@@ -590,6 +590,8 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
   <div class="ca-wrap">
     <h2 class="sr-only">One-dimensional cellular automaton simulator with 2-5 states, totalistic and local rules</h2>
 
+    <div class="ca-layout">
+    <div class="ca-main">
     <div class="ca-row">
       <RuleControls
         :state-count="stateCount"
@@ -661,7 +663,9 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :colors="COL"
       />
     </div>
+    </div>
 
+    <div class="ca-side">
     <div class="ca-row">
       <TagsPanel
         :tags="tags"
@@ -824,6 +828,8 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         @stop="stopSubAnalysis"
         @select-rule="onSelectSubRule"
       />
+    </div>
+    </div>
     </div>
   </div>
 </template>
