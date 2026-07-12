@@ -1,0 +1,101 @@
+# CA2026 — Cellular Automaton Explorer
+
+An interactive explorer for one-dimensional cellular automata (CA), built with Vue 3 +
+TypeScript + Vite. It lets you run automata with an arbitrary number of states, define a rule
+(totalistic or local), visualize the space-time diagram, and batch-run various automated
+analyses over many rules (behavior classification, field/glider/custom-pattern/line/chaos
+detection, and more), tagging rules along the way.
+
+## Stack
+
+- [Vue 3](https://vuejs.org/) (`<script setup lang="ts">`, Composition API)
+- TypeScript (strict mode, `noUnusedLocals`)
+- [Vite](https://vitejs.dev/) 6 + `vue-tsc`
+- Diagram rendering on `<canvas>` (no third-party visualization libraries)
+
+## Getting started
+
+```bash
+npm install
+npm run dev        # local dev server (Vite)
+npm run build      # type-check (vue-tsc -b) + production build
+npm run preview    # preview the production build
+npm run type-check # type-check only (vue-tsc --noEmit)
+```
+
+> On an older Node.js (e.g. 16.x), `npm run dev` / `npm run build` may fail with
+> `crypto$2.getRandomValues is not a function` — this is a Vite 6 / old Node.js
+> incompatibility, not an application code issue. Building/running dev requires a newer
+> Node.js (18+). `npm run type-check` still works fine on Node 16 — use it as the source of
+> truth when checking for type errors.
+
+## Features
+
+### Core automaton
+- Configurable number of cell states (2–5), with a color per state.
+- Two ways to define a rule:
+  - **Totalistic** — transition table keyed by the sum of neighbor states.
+  - **Local** — full transition table for a specific neighbor triple (or wider window),
+    encoded as a single rule code.
+- Configurable diagram width/height, initial state (single center cell or random noise with a
+  given density), random rule generation, manual code/seed entry.
+- The diagram is drawn on a `<canvas>`; a state legend and the current rule status are shown
+  alongside it.
+
+### Automated rule analysis
+Each analysis type is an independent panel that scans a range of rule codes (or a random
+sample of them, or already-tagged rules) and tags the results:
+
+| Analysis | Tag | What it does |
+|---|---|---|
+| Classification | `Dead`/`Fixed`/`Periodic`/`Stable`/`Chaotic`/`Complex`/`Undefined` | The automaton's base behavior class (mutually exclusive tags). |
+| Fields | `Fields` | Tiles the diagram into blocks and looks for a repeating (possibly shifting) pattern covering most of the field. |
+| Gliders | `Gliders` | Looks for a localized structure that reappears shifted sideways within the light cone (a moving object), with guards against false positives on fields. |
+| Custom search | `customSearch` | The user draws one or more templates (specific states, an "any" wildcard, and equality variables); a rule passes when none of the templates ever occur. |
+| Absence of lines | `NoLines` | Checks for full-height vertical/diagonal (any slope) solid-pattern lines; the tag marks the **absence** of lines. |
+| Chaos | `NoChaos` | Reduces the diagram to a pattern map; chaos is judged by whether the dominant pattern fails to stand out from the distribution; the tag marks the **absence** of chaos. |
+| Sub-analysis | — | An extra pass with its own parameters (width/range/K/N%/R%/etc.) over selected rules, with the ability to apply a found rule back to the main automaton. |
+| View as patterns | — | Reduces the rendered diagram to an M×M block map with a color legend of unique patterns. |
+
+All analysis panels share one run-control component (`ca/AnalysisRunControls.vue`) with three
+rule sources:
+- **code range** (from–to),
+- **random sample** (N random codes from the range — useful when the code space is
+  astronomically large),
+- **already-tagged rules**.
+
+### Tags
+Found or manually saved rules can be tagged and browsed/filtered in the tags panel
+(`ca/TagsPanel.vue`); data persists to `localStorage`.
+
+## Project structure
+
+```
+src/
+  App.vue                       — root component
+  main.ts                       — entry point
+  components/
+    CellularAutomatonExplorer.vue — main screen, wires composables and panels together
+    ca/                          — panels and controls
+      RuleControls.vue, InitControls.vue, LegendPanel.vue, ViewPanel.vue, TagsPanel.vue
+      AnalysisPanel.vue, FieldsAnalysisPanel.vue, GlidersAnalysisPanel.vue,
+      CustomSearchPanel.vue, LinesAnalysisPanel.vue, ChaosAnalysisPanel.vue,
+      SubAnalysisPanel.vue, AnalysisRunControls.vue
+  composables/                  — reactive logic (one per feature/analysis)
+  constants/ca.ts                — constants (palette, tags, analysis defaults)
+  types/ca.ts                    — shared TypeScript types
+  utils/
+    caMath.ts, caRender.ts, caAnalysis.ts (barrel)
+    analysis/                    — pure analysis functions: evolve, classify, fields,
+                                    gliders, customSearch, lines, chaos, subAnalysis,
+                                    patternMap, patches, shared
+```
+
+## Development
+
+- Each analysis type follows the same pattern: a pure function in `utils/analysis/*` + a
+  `useRule*Analysis.ts` composable + a `ca/*Panel.vue` panel, wired into
+  `CellularAutomatonExplorer.vue`. New analyses are typically added following this template.
+- Shared types live in `src/types/ca.ts` (rule/init modes, analysis configs and results, rule
+  snapshot, etc.).
+- Run `npm run type-check` before committing.
