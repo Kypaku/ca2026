@@ -1,6 +1,12 @@
 import { ref, reactive, computed } from 'vue'
 import { classifyRule } from '../utils/caAnalysis'
-import { codeToLocalRule, buildLocalRuleFromTotalistic, pickRandomCodes } from '../utils/caMath'
+import {
+  codeToLocalRule,
+  buildLocalRuleFromTotalistic,
+  pickRandomCodes,
+  pickRandomLocalRules,
+  localCodeExceedsSafeInteger,
+} from '../utils/caMath'
 import type {
   AnalysisInitMode,
   AnalysisRuleInput,
@@ -50,10 +56,10 @@ export function useRuleAnalysis() {
 
   const progress = computed(() => (total.value ? Math.round((done.value / total.value) * 100) : 0))
 
-  function buildParts(stateCount: number, mode: RuleMode, code: number): RuleParts {
+  function buildParts(stateCount: number, mode: RuleMode, code: number, localRule?: string): RuleParts {
     return mode === 'totalistic'
       ? { stateCount, mode: 'totalistic', code, localRule: '' }
-      : { stateCount, mode: 'local', code: 0, localRule: codeToLocalRule(code, stateCount) }
+      : { stateCount, mode: 'local', code: 0, localRule: localRule ?? codeToLocalRule(code, stateCount) }
   }
 
   function buildSnapshot(
@@ -61,10 +67,13 @@ export function useRuleAnalysis() {
     mode: RuleMode,
     code: number,
     init: AnalysisInitMode,
-    height: number
+    height: number,
+    localRuleOverride?: string
   ): RuleSnapshot {
     const localRule =
-      mode === 'local' ? codeToLocalRule(code, stateCount) : buildLocalRuleFromTotalistic(code, stateCount)
+      mode === 'local'
+        ? localRuleOverride ?? codeToLocalRule(code, stateCount)
+        : buildLocalRuleFromTotalistic(code, stateCount)
     return {
       stateCount,
       mode,
@@ -92,13 +101,25 @@ export function useRuleAnalysis() {
     const from = Math.max(0, Math.floor(params.from))
     const to = Math.max(from, Math.floor(params.to))
     const ruleItems = params.sourceMode === 'tags' ? params.rules || [] : null
+    const randomLocalRules =
+      params.sourceMode === 'random' && mode === 'local' && localCodeExceedsSafeInteger(stateCount)
+        ? pickRandomLocalRules(stateCount, params.sampleCount || 1)
+        : null
     const randomCodes =
-      params.sourceMode === 'random' ? pickRandomCodes(from, to, params.sampleCount || 1) : null
+      params.sourceMode === 'random' && !randomLocalRules
+        ? pickRandomCodes(from, to, params.sampleCount || 1)
+        : null
 
     Object.keys(counts).forEach((key) => delete counts[key])
     done.value = 0
     currentName.value = ''
-    total.value = ruleItems ? ruleItems.length : randomCodes ? randomCodes.length : to - from + 1
+    total.value = ruleItems
+      ? ruleItems.length
+      : randomLocalRules
+        ? randomLocalRules.length
+        : randomCodes
+          ? randomCodes.length
+          : to - from + 1
     running.value = true
 
     let index = 0
@@ -118,10 +139,11 @@ export function useRuleAnalysis() {
           snapshot = item.snapshot
           currentName.value = item.name || ''
         } else {
+          const localRuleOverride = randomLocalRules ? randomLocalRules[index] : undefined
           const code = randomCodes ? randomCodes[index] : from + index
           currentCode.value = code
-          parts = buildParts(stateCount, mode, code)
-          snapshot = buildSnapshot(stateCount, mode, code, init, height)
+          parts = buildParts(stateCount, mode, code, localRuleOverride)
+          snapshot = buildSnapshot(stateCount, mode, code, init, height, localRuleOverride)
         }
         const { tag } = classifyRule(parts, { width, height, init, chaosFlux, sparseFill, windowFraction })
         counts[tag] = (counts[tag] || 0) + 1

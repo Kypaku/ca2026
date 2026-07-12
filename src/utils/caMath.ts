@@ -147,6 +147,44 @@ export function pickRandomCodes(from: number, to: number, count: number): number
   return codes.sort((a, b) => a - b)
 }
 
+/**
+ * True when the local-rule code space for `states` (= `states^(states^3)`) is
+ * larger than what a JS number (double) can represent exactly. Above this
+ * threshold a numeric code loses its low-order base-`states` digits to
+ * floating-point rounding, so sampling via `pickRandomCodes` +
+ * `codeToLocalRule` would yield rules whose leading digits are always 0 (a
+ * near-dead automaton). Holds for local rules with 4+ states.
+ */
+export function localCodeExceedsSafeInteger(states: number): boolean {
+  const config = getConfig(states)
+  return config.localDigits * Math.log2(config.states) > 53
+}
+
+/** Builds a uniformly random local-rule digit string of the full length for `states`. */
+export function randomLocalRule(states: number): string {
+  const config = getConfig(states)
+  let rule = ''
+  for (let i = 0; i < config.localDigits; i++) {
+    rule += String(Math.floor(Math.random() * config.states))
+  }
+  return rule
+}
+
+/**
+ * Picks `count` uniformly random local-rule digit strings. Used instead of
+ * numeric codes when the code space is too large to sample precisely as
+ * doubles (see {@link localCodeExceedsSafeInteger}), so every neighborhood —
+ * including the low-order "000…" ones — gets a genuinely random output value.
+ */
+export function pickRandomLocalRules(states: number, count: number): string[] {
+  const n = Math.max(1, Math.floor(count))
+  const rules: string[] = []
+  for (let i = 0; i < n; i++) {
+    rules.push(randomLocalRule(states))
+  }
+  return rules
+}
+
 /** Converts a numeric local rule code back into its digit string (see `localRuleToCode`). */
 export function codeToLocalRule(code: number, states: number): string {
   const config = getConfig(states)
