@@ -12,7 +12,7 @@ import {
   codeToLocalRule,
   normalizeStateCount,
 } from '../utils/caMath'
-import { buildInitialRow, renderDiagram } from '../utils/caRender'
+import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
 import type { CaConfig, InitMode, LegendItem, RuleMode, RuleParts, RuleSnapshot } from '../types/ca'
 
 /** Reads the current value out of an input `Event` target. */
@@ -34,6 +34,7 @@ export function useCellularAutomaton() {
   const stateCount = ref(2) // 2 | 3 | 4 | 5
   const init = ref<InitMode>('random') // 'single' | 'random' | 'custom'
   const noise = ref(0) // 0-100, % of cells on each step get a random value against the rule
+  const extraRows = ref(50) // how many more generations "continue simulation" adds
 
   const totalisticCodes = reactive<Record<number, number>>({ 2: 6, 3: 1155, 4: 0, 5: 0 })
   const localRules = reactive<Record<number, string>>({ 2: '', 3: '', 4: '', 5: '' })
@@ -254,6 +255,69 @@ export function useCellularAutomaton() {
     })
   }
 
+  function clampExtraRows(value: number): number {
+    return Math.max(1, Math.min(5000, value))
+  }
+
+  function setExtraRows(value: number): void {
+    if (isNaN(value)) {
+      return
+    }
+    extraRows.value = clampExtraRows(value)
+  }
+
+  function onExtraRowsInput(event: Event): void {
+    const raw = inputValue(event)
+    if (raw === '') {
+      return
+    }
+    const nextValue = parseInt(raw, 10)
+    if (isNaN(nextValue)) {
+      return
+    }
+    setExtraRows(nextValue)
+  }
+
+  /**
+   * Continues the current diagram past its last generation instead of
+   * re-simulating from the initial row: keeps every already-rendered row and
+   * evolves `extraRows` more generations on top of the last one, growing the
+   * canvas and `H` to fit. No-op fallback to a full `run()` if nothing has
+   * been rendered yet.
+   */
+  function continueSimulation(): void {
+    const canvas = canvasRef.value
+    if (!canvas || grid.value.length === 0) {
+      run()
+      return
+    }
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      return
+    }
+    const addRows = clampExtraRows(extraRows.value)
+    const config = activeConfig()
+    const sums = mode.value === 'totalistic' ? totalisticTable(totalisticCodes[stateCount.value], stateCount.value) : null
+    const explicitRule = mode.value === 'local' ? currentLocalRule() : ''
+
+    const newHeight = grid.value.length + addRows
+    canvas.width = W.value * CA_PIXEL_SIZE
+    canvas.height = newHeight * CA_PIXEL_SIZE
+
+    grid.value = extendDiagram({
+      ctx,
+      width: W.value,
+      config,
+      mode: mode.value,
+      sums,
+      explicitRule,
+      noiseP: noise.value / 100,
+      previousRows: grid.value,
+      extraRows: addRows,
+    })
+    H.value = newHeight
+  }
+
   function refresh(): void {
     updateStateUI()
     updateRuleStatus()
@@ -452,6 +516,7 @@ export function useCellularAutomaton() {
     stateCount,
     init,
     noise,
+    extraRows,
     codeValue,
     codeMax,
     sliderLabelText,
@@ -471,6 +536,8 @@ export function useCellularAutomaton() {
     // actions
     run,
     refresh,
+    continueSimulation,
+    onExtraRowsInput,
     setInit,
     setMode,
     setStateCount,

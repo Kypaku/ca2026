@@ -44,6 +44,7 @@ const {
   stateCount,
   init,
   noise,
+  extraRows,
   codeValue,
   codeMax,
   sliderLabelText,
@@ -62,6 +63,8 @@ const {
   grid,
   run,
   refresh,
+  continueSimulation,
+  onExtraRowsInput,
   setInit,
   setMode,
   setStateCount,
@@ -655,6 +658,25 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
       role="img"
       aria-label="Spatiotemporal diagram of the cellular automaton"
     ></canvas>
+
+    <div class="ca-row">
+      <div class="ca-control">
+        <label class="ca-label">Continue simulating</label>
+        <div class="ca-inline">
+          <input
+            class="ca-number"
+            type="number"
+            min="1"
+            max="5000"
+            step="1"
+            :value="extraRows"
+            @input="onExtraRowsInput"
+          />
+          <button type="button" @click="continueSimulation">continue {{ extraRows }} generations</button>
+        </div>
+        <div class="ca-meter">adds generations past the last row, without restarting from the initial row</div>
+      </div>
+    </div>
 
     <div class="ca-row">
       <ViewPanel

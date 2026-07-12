@@ -50,6 +50,52 @@ export interface RenderDiagramParams {
   initialRow: Uint8Array
 }
 
+/** Computes the next row from `row` using the shared totalistic/local rule + noise logic. */
+function evolveStep(
+  row: Uint8Array,
+  width: number,
+  config: CaConfig,
+  mode: 'totalistic' | 'local',
+  sums: number[] | null,
+  explicitRule: string,
+  noiseP: number
+): Uint8Array {
+  const nextRow = new Uint8Array(width)
+  for (let k = 0; k < width; k++) {
+    const left = row[(k - 1 + width) % width]
+    const center = row[k]
+    const right = row[(k + 1) % width]
+    let value: number
+    if (mode === 'totalistic') {
+      value = (sums as number[])[left + center + right]
+    } else {
+      value = explicitRule.charCodeAt(left * config.states * config.states + center * config.states + right) - 48
+    }
+    if (noiseP > 0 && Math.random() < noiseP) {
+      // Force a value different from the one the rule dictates, so the
+      // deviation is guaranteed to go "against" the rule, not just be noisy.
+      let deviation = Math.floor(Math.random() * (config.states - 1))
+      if (deviation >= value) {
+        deviation += 1
+      }
+      value = deviation
+    }
+    nextRow[k] = value
+  }
+  return nextRow
+}
+
+/** Draws a single already-computed row of cells at row index `y` onto `ctx`. */
+function paintRow(ctx: CanvasRenderingContext2D, row: Uint8Array, width: number, y: number): void {
+  for (let x = 0; x < width; x++) {
+    const state = row[x]
+    if (state) {
+      ctx.fillStyle = CA_COLORS[state]
+      ctx.fillRect(x * CA_PIXEL_SIZE, y * CA_PIXEL_SIZE, CA_PIXEL_SIZE, CA_PIXEL_SIZE)
+    }
+  }
+}
+
 /**
  * Draws the full H×W space-time diagram onto `ctx` and returns every rendered
  * row so callers can reuse the exact pixels (e.g. the "convert to patterns" view)
@@ -66,36 +112,52 @@ export function renderDiagram(params: RenderDiagramParams): Uint8Array[] {
   const rowsData: Uint8Array[] = new Array(height)
   for (let y = 0; y < height; y++) {
     rowsData[y] = row.slice()
-    for (let x = 0; x < width; x++) {
-      const state = row[x]
-      if (state) {
-        ctx.fillStyle = CA_COLORS[state]
-        ctx.fillRect(x * CA_PIXEL_SIZE, y * CA_PIXEL_SIZE, CA_PIXEL_SIZE, CA_PIXEL_SIZE)
-      }
-    }
-    const nextRow = new Uint8Array(width)
-    for (let k = 0; k < width; k++) {
-      const left = row[(k - 1 + width) % width]
-      const center = row[k]
-      const right = row[(k + 1) % width]
-      let value: number
-      if (mode === 'totalistic') {
-        value = (sums as number[])[left + center + right]
-      } else {
-        value = explicitRule.charCodeAt(left * config.states * config.states + center * config.states + right) - 48
-      }
-      if (noiseP > 0 && Math.random() < noiseP) {
-        // Force a value different from the one the rule dictates, so the
-        // deviation is guaranteed to go "against" the rule, not just be noisy.
-        let deviation = Math.floor(Math.random() * (config.states - 1))
-        if (deviation >= value) {
-          deviation += 1
-        }
-        value = deviation
-      }
-      nextRow[k] = value
-    }
-    row = nextRow
+    paintRow(ctx, row, width, y)
+    row = evolveStep(row, width, config, mode, sums, explicitRule, noiseP)
+  }
+  return rowsData
+}
+
+export interface ExtendDiagramParams {
+  ctx: CanvasRenderingContext2D
+  width: number
+  config: CaConfig
+  mode: 'totalistic' | 'local'
+  sums: number[] | null
+  explicitRule: string
+  noiseP: number
+  /** Rows already rendered/kept from a previous run() or extendDiagram() call. */
+  previousRows: Uint8Array[]
+  /** How many additional generations to simulate past `previousRows`. */
+  extraRows: number
+}
+
+/**
+ * Continues simulating a diagram that was already drawn by `renderDiagram`
+ * (or a prior `extendDiagram` call), instead of restarting from the initial
+ * row. Assumes `ctx`'s canvas has already been resized to fit
+ * `(previousRows.length + extraRows)` rows and repaints the whole thing
+ * (canvas resizing clears pixel contents), reusing the already-known rows
+ * so nothing is re-evolved. Returns the full row set (previous + new).
+ */
+export function extendDiagram(params: ExtendDiagramParams): Uint8Array[] {
+  const { ctx, width, config, mode, sums, explicitRule, noiseP, previousRows, extraRows } = params
+  const totalHeight = previousRows.length + extraRows
+
+  ctx.fillStyle = CA_COLORS[0]
+  ctx.fillRect(0, 0, width * CA_PIXEL_SIZE, totalHeight * CA_PIXEL_SIZE)
+
+  const rowsData: Uint8Array[] = new Array(totalHeight)
+  let row = previousRows[previousRows.length - 1] || new Uint8Array(width)
+  for (let y = 0; y < previousRows.length; y++) {
+    rowsData[y] = previousRows[y]
+    paintRow(ctx, previousRows[y], width, y)
+  }
+  for (let i = 0; i < extraRows; i++) {
+    const y = previousRows.length + i
+    row = evolveStep(row, width, config, mode, sums, explicitRule, noiseP)
+    rowsData[y] = row
+    paintRow(ctx, row, width, y)
   }
   return rowsData
 }
