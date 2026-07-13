@@ -13,7 +13,7 @@ import {
   normalizeStateCount,
 } from '../utils/caMath'
 import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
-import type { CaConfig, InitMode, LegendItem, RuleMode, RuleParts, RuleSnapshot } from '../types/ca'
+import type { CaConfig, InitMode, LegendItem, RuleMode, RuleSnapshot } from '../types/ca'
 
 /** Reads the current value out of an input `Event` target. */
 function inputValue(event: Event): string {
