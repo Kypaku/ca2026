@@ -6,6 +6,9 @@ TypeScript + Vite. It lets you run automata with an arbitrary number of states, 
 analyses over many rules (behavior classification, field/glider/custom-pattern/line/chaos
 detection, and more), tagging rules along the way.
 
+![Screen of the app 1](images/screen1.jpg)
+![Screen of the app 2)](images/screen2.jpg)
+
 ### Demo
 
 [Demo](https://kypaku.github.io/pages/ca2026)
