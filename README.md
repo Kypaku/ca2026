@@ -23,8 +23,6 @@ detection, and more), tagging rules along the way.
     encoded as a single rule code.
 - Configurable diagram width/height, initial state (single center cell or random noise with a
   given density), random rule generation, manual code/seed entry.
-- The diagram is drawn on a `<canvas>`; a state legend and the current rule status are shown
-  alongside it.
 
 ### Automated rule analysis
 Each analysis type is an independent panel that scans a range of rule codes (or a random
