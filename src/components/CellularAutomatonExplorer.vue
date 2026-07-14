@@ -597,6 +597,7 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
     <div class="ca-layout">
     <div class="ca-main">
     <div class="ca-row">
+
       <RuleControls
         :state-count="stateCount"
         :mode="mode"

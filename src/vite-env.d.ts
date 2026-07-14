@@ -1,4 +1,10 @@
 /// <reference types="vite/client" />
+/// <reference types="unocss/vite" />
+
+declare module 'virtual:uno.css' {
+  const css: string
+  export default css
+}
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
