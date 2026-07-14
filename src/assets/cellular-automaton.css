@@ -97,13 +97,16 @@
   min-width: 180px;
 }
 .ca-number {
-  width: 96px;
+  width: 200px;
+  min-width: 96px;
+  max-width: 100%;
   padding: 8px 10px;
   border: 0.5px solid var(--ca-border);
   border-radius: 10px;
   background: var(--ca-panel);
   color: var(--ca-chip-text);
-  font: 600 14px/1.2 ui-monospace, monospace;
+  font: 600 13px/1.2 ui-monospace, monospace;
+  box-sizing: border-box;
 }
 .ca-out {
   font-size: 20px;

@@ -11,6 +11,7 @@ import {
   localRuleToCode,
   codeToLocalRule,
   normalizeStateCount,
+  localCodeExceedsSafeInteger,
 } from '../utils/caMath'
 import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
 import type { CaConfig, InitMode, LegendItem, RuleMode, RuleSnapshot } from '../types/ca'
@@ -57,6 +58,12 @@ export function useCellularAutomaton() {
   // Last rendered space-time diagram (H rows × W cells), kept so the "convert to
   // patterns" view can reduce exactly what is on screen without re-evolving.
   const grid = shallowRef<Uint8Array[]>([])
+
+  // The numeric rule code is only meaningful while it fits in a JS double.
+  // For local rules with 4+ states the code space (states^(states^3)) overflows
+  // that precision, so the code slider/input would show a bogus float in
+  // scientific notation — hide it and let the rule string input be the editor.
+  const showCodeControl = computed(() => !(mode.value === 'local' && localCodeExceedsSafeInteger(stateCount.value)))
 
   const heightStatusText = computed(() => `${H.value} rows`)
   const widthStatusText = computed(() => `${W.value} cells per row`)
@@ -519,6 +526,7 @@ export function useCellularAutomaton() {
     extraRows,
     codeValue,
     codeMax,
+    showCodeControl,
     sliderLabelText,
     ruleInputValue,
     ruleLabelText,

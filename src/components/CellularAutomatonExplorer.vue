@@ -47,6 +47,7 @@ const {
   extraRows,
   codeValue,
   codeMax,
+  showCodeControl,
   sliderLabelText,
   ruleInputValue,
   ruleLabelText,
@@ -601,6 +602,7 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :mode="mode"
         :code-value="codeValue"
         :code-max="codeMax"
+        :show-code-control="showCodeControl"
         :slider-label-text="sliderLabelText"
         :rule-label-text="ruleLabelText"
         :rule-status-text="ruleStatusText"

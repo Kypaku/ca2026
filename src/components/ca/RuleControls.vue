@@ -6,6 +6,7 @@ const props = defineProps<{
   mode: string
   codeValue: number
   codeMax: number
+  showCodeControl: boolean
   sliderLabelText: string
   ruleLabelText: string
   ruleStatusText: string
@@ -42,7 +43,7 @@ const emit = defineEmits([
   </span>
 
   <div class="ca-panel">
-    <div class="ca-control">
+    <div class="ca-control" v-if="showCodeControl">
       <label class="ca-label">{{ sliderLabelText }}</label>
       <div class="ca-inline">
         <input
