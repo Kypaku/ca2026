@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { SUBANALYSIS_DEFAULTS } from '../../constants/ca'
+import { SUBANALYSIS_DEFAULTS, LARGE_STRUCTURES_TAG } from '../../constants/ca'
 import type { AnalysisRunConfig, TaggedRule } from '../../types/ca'
 import type { SubAnalysisResultRow } from '../../composables/useRuleSubAnalysis'
 import AnalysisRunControls from './AnalysisRunControls.vue'
+import TagTargetSelector from './TagTargetSelector.vue'
+import TagFoundActions from './TagFoundActions.vue'
 
 const props = defineProps<{
   stateCount: number
@@ -18,12 +20,21 @@ const props = defineProps<{
   progress: number
   currentCode: number
   currentName?: string
+  found: number
+  canUndoFound?: boolean
   results: SubAnalysisResultRow[]
 }>()
 
-const emit = defineEmits(['run', 'stop', 'select-rule'])
+const emit = defineEmits(['run', 'stop', 'select-rule', 'undo-found', 'clear-tag'])
 
 const resultFilter = ref<'all' | 'found' | 'missing'>('all') // 'all' | 'found' | 'missing'
+
+// The tag that found rules are attached to. Defaults to the built-in
+// LargeStructures tag but the user can pick any existing tag (or type a new one).
+const targetTag = ref<string>(LARGE_STRUCTURES_TAG)
+
+// Number of rules currently carrying the selected target tag.
+const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const keep = ref(SUBANALYSIS_DEFAULTS.keep)
 const chunkPercent = ref(SUBANALYSIS_DEFAULTS.chunkPercent)
@@ -103,6 +114,7 @@ function onRun(config: AnalysisRunConfig): void {
     tags: config.tags,
     init: config.init,
     height: height.value,
+    targetTag: targetTag.value.trim() || LARGE_STRUCTURES_TAG,
     options: {
       keep: keep.value,
       chunkPercent: chunkPercent.value,
@@ -119,7 +131,7 @@ function onRun(config: AnalysisRunConfig): void {
 
 <template>
   <div class="ca-analysis">
-    <h3 class="ca-panel-title">Sub-analysis</h3>
+    <h3 class="ca-panel-title">Sub-analysis ({{ LARGE_STRUCTURES_TAG }})</h3>
     <AnalysisRunControls
       :code-max="codeMax"
       :running="running"
@@ -129,8 +141,8 @@ function onRun(config: AnalysisRunConfig): void {
       :current-code="currentCode"
       :current-name="currentName"
       run-label="▶ run sub-analysis"
-      :found="foundCount"
-      found-label="fit"
+      :found="missingCount"
+      found-label="large struct."
       :tags="tags"
       :tag-counts="tagCounts"
       :rules="rules"
@@ -144,11 +156,17 @@ function onRun(config: AnalysisRunConfig): void {
           A set of rules is gathered (full range, random sample or by selected tags),
           and each is tested separately: for the last K rows the minimal width is searched for, at
           which the sum of values in any chunk (chunk width = N% of the width) deviates from
-          the average by no more than R%.
+          the average by no more than R%. The tag «{{ targetTag.trim() || LARGE_STRUCTURES_TAG }}»
+          is applied to rules where NO such width was found — i.e. the diagram never becomes
+          uniform and keeps large structures.
         </label>
       </template>
 
       <template #params>
+        <div class="ca-inline">
+          <TagTargetSelector v-model="targetTag" :tags="tags" :default-tag="LARGE_STRUCTURES_TAG" :running="running" />
+        </div>
+
         <div class="ca-inline">
           <label class="ca-field">
             <span class="ca-field-cap">K (rows)</span>
@@ -187,6 +205,16 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #footer>
+        <TagFoundActions
+          :target-tag="targetTag.trim() || LARGE_STRUCTURES_TAG"
+          :tag-count="targetTagCount"
+          :found="missingCount"
+          :running="running"
+          :can-undo-found="canUndoFound"
+          @undo-found="emit('undo-found')"
+          @clear-tag="(tag) => emit('clear-tag', tag)"
+        />
+
         <div class="ca-inline" v-if="resultRows.length">
           <span class="ca-seg">
             <button type="button" :class="{ on: resultFilter === 'all' }" @click="resultFilter = 'all'">all ({{ resultRows.length }})</button>

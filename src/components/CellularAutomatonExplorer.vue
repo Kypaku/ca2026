@@ -10,7 +10,7 @@ import { useRuleCustomSearchAnalysis } from '../composables/useRuleCustomSearchA
 import { useRuleLinesAnalysis } from '../composables/useRuleLinesAnalysis'
 import { useRuleChaosAnalysis } from '../composables/useRuleChaosAnalysis'
 import { useRuleSubAnalysis } from '../composables/useRuleSubAnalysis'
-import { FIELDS_TAG, GLIDERS_TAG, CUSTOM_SEARCH_TAG, LINES_TAG, CHAOS_TAG } from '../constants/ca'
+import { FIELDS_TAG, GLIDERS_TAG, CUSTOM_SEARCH_TAG, LINES_TAG, CHAOS_TAG, LARGE_STRUCTURES_TAG } from '../constants/ca'
 import type {
   AnalysisInitMode,
   AnalysisRuleInput,
@@ -187,6 +187,7 @@ const {
   total: subTotal,
   progress: subProgress,
   currentName: subCurrentName,
+  found: subFound,
   results: subResults,
   start: startSubAnalysis,
   stop: stopSubAnalysis,
@@ -699,8 +700,13 @@ interface RunSubAnalysisPayload {
   tags: string[]
   init: AnalysisInitMode
   height: number
+  targetTag: string
   options: SubAnalyzeOptions
 }
+
+// Rules tagged by the CURRENT (or most recently finished) sub-analysis run, kept so
+// "undo found" can untag exactly them (with the tag that run used).
+const subFoundRules = ref<{ parts: RuleParts; snapshot: RuleSnapshot; tag: string }[]>([])
 
 function onRunSubAnalysis({
   sourceMode,
@@ -710,8 +716,17 @@ function onRunSubAnalysis({
   tags: selectedTags,
   init: subInit,
   height,
+  targetTag,
   options,
 }: RunSubAnalysisPayload): void {
+  const tag = String(targetTag || '').trim() || LARGE_STRUCTURES_TAG
+  subFoundRules.value = []
+  const apply = (hasLargeStructures: boolean, parts: RuleParts, snapshot: RuleSnapshot): void => {
+    if (hasLargeStructures) {
+      subFoundRules.value.push({ parts, snapshot, tag })
+    }
+    applyOrthogonalTag(tag, hasLargeStructures, parts, snapshot)
+  }
   startSubAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
@@ -723,7 +738,22 @@ function onRunSubAnalysis({
     height,
     rules: sourceMode === 'tags' ? rulesForTags(selectedTags) : undefined,
     options,
+    apply,
   })
+}
+
+// Untags every rule the last completed sub-analysis run had tagged.
+function onUndoSubFound(): void {
+  for (const { parts, snapshot, tag } of subFoundRules.value) {
+    applyOrthogonalTag(tag, false, parts, snapshot)
+  }
+  subFoundRules.value = []
+}
+
+// Wipes the given tag off every rule in the library, regardless of which run tagged them.
+function onClearSubTag(tagName: string): void {
+  clearTag(String(tagName || '').trim() || LARGE_STRUCTURES_TAG)
+  subFoundRules.value = []
 }
 
 function onSelectSubRule(snapshot: RuleSnapshot): void {
@@ -1003,10 +1033,14 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :progress="subProgress"
         :current-code="0"
         :current-name="subCurrentName"
+        :found="subFound"
+        :can-undo-found="subFoundRules.length > 0"
         :results="subResults"
         @run="onRunSubAnalysis"
         @stop="stopSubAnalysis"
         @select-rule="onSelectSubRule"
+        @undo-found="onUndoSubFound"
+        @clear-tag="onClearSubTag"
       />
     </div>
     </div>

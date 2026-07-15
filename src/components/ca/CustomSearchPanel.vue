@@ -38,9 +38,9 @@ const props = defineProps<{
 const emit = defineEmits(['run', 'stop', 'undo-found', 'clear-tag'])
 
 const MIN_PW = 1
-const MAX_PW = 24
+const MAX_PW = 96
 const MIN_PH = 1
-const MAX_PH = 24
+const MAX_PH = 96
 
 let uid = 0
 function nextId(): string {

@@ -25,6 +25,10 @@ export interface SubAnalysisResultRow extends SubAnalyzeResult {
   snapshot: RuleSnapshot
 }
 
+/** Callback invoked with the "has large structures" verdict (no fitting width
+ * found) for each scanned rule. */
+export type ApplySub = (hasLargeStructures: boolean, parts: RuleParts, snapshot: RuleSnapshot) => void
+
 /** Parameters accepted by {@link useRuleSubAnalysis.start}. */
 export interface SubAnalysisStartParams {
   stateCount: number
@@ -37,6 +41,7 @@ export interface SubAnalysisStartParams {
   sampleCount?: number
   rules?: AnalysisRuleInput[]
   options: SubAnalyzeOptions
+  apply: ApplySub
 }
 
 /**
@@ -51,6 +56,7 @@ export function useRuleSubAnalysis() {
   const running = ref(false)
   const done = ref(0)
   const total = ref(0)
+  const found = ref(0)
   const results = reactive<SubAnalysisResultRow[]>([])
   const currentName = ref('')
 
@@ -99,7 +105,7 @@ export function useRuleSubAnalysis() {
     if (running.value) {
       return
     }
-    const { stateCount, mode, init, height, options } = params
+    const { stateCount, mode, init, height, options, apply } = params
     const from = Math.max(0, Math.floor(params.from))
     const to = Math.max(from, Math.floor(params.to))
     const ruleItems = params.sourceMode === 'tags' ? params.rules || [] : null
@@ -114,6 +120,7 @@ export function useRuleSubAnalysis() {
 
     results.splice(0, results.length)
     done.value = 0
+    found.value = 0
     currentName.value = ''
     total.value = ruleItems
       ? ruleItems.length
@@ -157,6 +164,13 @@ export function useRuleSubAnalysis() {
       }
       currentName.value = name
       const res = subAnalyzeRule(parts, options)
+      // Tag rules that never homogenize (no fitting width found) — i.e. rules
+      // that keep large, non-uniform structures.
+      const hasLargeStructures = res.foundWidth === null
+      if (hasLargeStructures) {
+        found.value += 1
+      }
+      apply(hasLargeStructures, parts, snapshot)
       results.push({ id, name, snapshot, ...res })
       done.value += 1
       index += 1
@@ -176,6 +190,7 @@ export function useRuleSubAnalysis() {
     running,
     done,
     total,
+    found,
     results,
     currentName,
     progress,

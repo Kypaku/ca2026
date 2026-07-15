@@ -49,6 +49,12 @@ export const LINES_TAG = 'NoLines'
 // dominant repeating background (e.g. rule 110) are tagged.
 export const CHAOS_TAG = 'NoChaos'
 
+// Extra, non-exclusive analysis tag produced by the "sub-analysis" test. Each rule
+// is grown across ascending widths; the tag is applied to rules for which a width
+// is found where the space-time diagram becomes spatially uniform (chunk sums stay
+// within R% of the mean) — i.e. the rule settles into large, homogeneous structures.
+export const LARGE_STRUCTURES_TAG = 'LargeStructures'
+
 // Sentinel cell value inside a CustomPattern meaning "match any state value".
 export const CUSTOM_ANY = -1
 
