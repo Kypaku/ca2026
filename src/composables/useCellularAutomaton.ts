@@ -14,6 +14,7 @@ import {
   localCodeExceedsSafeInteger,
 } from '../utils/caMath'
 import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
+import type { RenderContext } from '../utils/caLargeRender'
 import type { CaConfig, InitMode, LegendItem, RuleMode, RuleSnapshot } from '../types/ca'
 
 /** Reads the current value out of an input `Event` target. */
@@ -469,8 +470,7 @@ export function useCellularAutomaton() {
   }
 
   /** Captures everything needed to reproduce the current rule/init/height later. */
-  function captureRuleSnapshot(): RuleSnapshot {
-    storeCurrentRule()
+  function captureRuleSnapshot(): RuleSnapshot {    storeCurrentRule()
     storeCurrentSeed()
     return {
       stateCount: stateCount.value,
@@ -509,6 +509,29 @@ export function useCellularAutomaton() {
     ruleInputValue.value = localRules[nextStateCount]
     mode.value = snapshot.mode === 'local' ? 'local' : 'totalistic'
     refresh()
+  }
+
+  /**
+   * Bundles the immutable inputs needed to render the current rule at any
+   * width/height off-screen (used by the large-scale image renderer). The
+   * rule/mode/noise reflect the current UI state; the initial row is rebuilt
+   * for the requested width so the export can use dimensions that differ from
+   * the on-screen diagram without touching the interactive canvas.
+   */
+  function getRenderContext(): RenderContext {
+    const config = activeConfig()
+    const sums =
+      mode.value === 'totalistic' ? totalisticTable(totalisticCodes[stateCount.value], stateCount.value) : null
+    const explicitRule = mode.value === 'local' ? currentLocalRule() : ''
+    return {
+      config,
+      mode: mode.value,
+      sums,
+      explicitRule,
+      noiseP: noise.value / 100,
+      makeInitialRow: (width: number) =>
+        buildInitialRow(width, config, stateCount.value, init.value, seedInputValue.value),
+    }
   }
 
   return {
@@ -564,5 +587,6 @@ export function useCellularAutomaton() {
     initialize: init3AndRefresh,
     captureRuleSnapshot,
     applyRuleSnapshot,
+    getRenderContext,
   }
 }

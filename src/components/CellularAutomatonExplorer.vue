@@ -26,6 +26,7 @@ import RuleControls from './ca/RuleControls.vue'
 import InitControls from './ca/InitControls.vue'
 import LegendPanel from './ca/LegendPanel.vue'
 import ViewPanel from './ca/ViewPanel.vue'
+import RenderPanel from './ca/RenderPanel.vue'
 import TagsPanel from './ca/TagsPanel.vue'
 import AnalysisPanel from './ca/AnalysisPanel.vue'
 import FieldsAnalysisPanel from './ca/FieldsAnalysisPanel.vue'
@@ -84,6 +85,7 @@ const {
   initialize,
   captureRuleSnapshot,
   applyRuleSnapshot,
+  getRenderContext,
 } = useCellularAutomaton()
 
 const {
@@ -826,6 +828,10 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :states="stateCount"
         :colors="COL"
       />
+    </div>
+
+    <div class="ca-row">
+      <RenderPanel :render-context="getRenderContext" />
     </div>
     </div>
 

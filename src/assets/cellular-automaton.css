@@ -598,3 +598,32 @@
   opacity: 0.75;
 }
 
+/* Render panel: large-image export */
+.ca-render-warn {
+  color: #c0392b;
+  font-weight: 600;
+}
+.ca-render-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0.5px solid var(--ca-border);
+  border-radius: 10px;
+  background: var(--ca-chip-bg);
+  color: var(--ca-chip-text);
+  font: 600 13px/1.2 ui-monospace, monospace;
+  text-decoration: none;
+}
+.ca-render-download:hover {
+  background: var(--ca-panel);
+}
+.ca-render-preview {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-top: 8px;
+  border: 0.5px solid var(--ca-border);
+  border-radius: 8px;
+  image-rendering: pixelated;
+}

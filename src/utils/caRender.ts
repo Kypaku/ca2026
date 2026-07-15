@@ -51,7 +51,7 @@ export interface RenderDiagramParams {
 }
 
 /** Computes the next row from `row` using the shared totalistic/local rule + noise logic. */
-function evolveStep(
+export function evolveStep(
   row: Uint8Array,
   width: number,
   config: CaConfig,
