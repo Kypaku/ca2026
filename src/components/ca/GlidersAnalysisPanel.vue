@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { GLIDERS_DEFAULTS, GLIDERS_TAG } from '../../constants/ca'
 import type { AnalysisRunConfig, GliderCondition, TaggedRule } from '../../types/ca'
 import AnalysisRunControls from './AnalysisRunControls.vue'
+import TagTargetSelector from './TagTargetSelector.vue'
+import TagFoundActions from './TagFoundActions.vue'
 
 const props = defineProps<{
   stateCount: number
@@ -15,13 +17,13 @@ const props = defineProps<{
   currentCode: number
   currentName?: string
   found: number
-  tagCount: number
+  canUndoFound?: boolean
   tags: string[]
   tagCounts: Record<string, number>
   rules: TaggedRule[]
 }>()
 
-const emit = defineEmits(['run', 'stop'])
+const emit = defineEmits(['run', 'stop', 'undo-found', 'clear-tag'])
 
 const blockWidth = ref(GLIDERS_DEFAULTS.blockWidth)
 const blockHeight = ref(GLIDERS_DEFAULTS.blockHeight)
@@ -34,6 +36,13 @@ const spaceshipGap = ref(GLIDERS_DEFAULTS.spaceshipGap)
 const spaceshipStep = ref(GLIDERS_DEFAULTS.spaceshipStep)
 const spaceshipDetections = ref(GLIDERS_DEFAULTS.spaceshipDetections)
 const condition = ref<GliderCondition>(GLIDERS_DEFAULTS.condition)
+
+// The tag that found rules are attached to. Defaults to the built-in Gliders tag
+// but the user can pick any existing tag (or type a new one) to use instead.
+const targetTag = ref<string>(GLIDERS_TAG)
+
+// Number of rules currently carrying the selected target tag.
+const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const modeLabel = computed(() =>
   props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
@@ -71,7 +80,13 @@ function onRun(config: AnalysisRunConfig): void {
     spaceshipStep: spaceshipStep.value,
     spaceshipDetections: spaceshipDetections.value,
     condition: condition.value,
+    targetTag: targetTag.value.trim() || GLIDERS_TAG,
   })
+}
+
+// Untags every rule the last completed run had tagged (does not touch earlier runs).
+function onUndoFound(): void {
+  emit('undo-found')
 }
 </script>
 
@@ -103,7 +118,7 @@ function onRun(config: AnalysisRunConfig): void {
         <label class="ca-label">
           Separate run: a reference patch {{ blockWidth }}×{{ blockHeight }} is taken from the top and
           searched for further down in time, shifted sideways within the light cone (|shift| ≤ dy). The tag
-          «{{ GLIDERS_TAG }}» is applied if at least {{ minMatches }} matches are found with a shift
+          «{{ targetTag.trim() || GLIDERS_TAG }}» is applied if at least {{ minMatches }} matches are found with a shift
           of {{ minShift }} cell(s) or more — a sign of a moving structure (glider / spaceship). In modes
           with a shift, the rule is checked bottom-to-top for a "stationary spaceship": if a patch
           repeats in the same column ≥ {{ spaceshipRepeats }} times (gap ≤ {{ spaceshipGap }} rows)
@@ -116,6 +131,10 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #params>
+        <div class="ca-inline">
+          <TagTargetSelector v-model="targetTag" :tags="tags" :default-tag="GLIDERS_TAG" :running="running" />
+        </div>
+
         <div class="ca-inline">
           <label class="ca-field">
             <span class="ca-field-cap">patch W</span>
@@ -198,7 +217,15 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #footer>
-        <div class="ca-meter">total tagged «{{ GLIDERS_TAG }}»: {{ tagCount }}</div>
+        <TagFoundActions
+          :target-tag="targetTag.trim() || GLIDERS_TAG"
+          :tag-count="targetTagCount"
+          :found="found"
+          :running="running"
+          :can-undo-found="canUndoFound"
+          @undo-found="onUndoFound"
+          @clear-tag="(tag) => emit('clear-tag', tag)"
+        />
       </template>
     </AnalysisRunControls>
   </div>

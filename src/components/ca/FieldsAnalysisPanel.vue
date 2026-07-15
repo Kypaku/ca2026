@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { FIELDS_DEFAULTS, FIELDS_TAG } from '../../constants/ca'
 import type { AnalysisRunConfig, TaggedRule } from '../../types/ca'
 import AnalysisRunControls from './AnalysisRunControls.vue'
+import TagTargetSelector from './TagTargetSelector.vue'
+import TagFoundActions from './TagFoundActions.vue'
 
 const props = defineProps<{
   stateCount: number
@@ -15,17 +17,24 @@ const props = defineProps<{
   currentCode: number
   currentName?: string
   found: number
-  tagCount: number
+  canUndoFound?: boolean
   tags: string[]
   tagCounts: Record<string, number>
   rules: TaggedRule[]
 }>()
 
-const emit = defineEmits(['run', 'stop'])
+const emit = defineEmits(['run', 'stop', 'undo-found', 'clear-tag'])
 
 const blockWidth = ref(FIELDS_DEFAULTS.blockWidth)
 const blockHeight = ref(FIELDS_DEFAULTS.blockHeight)
 const minPercent = ref(FIELDS_DEFAULTS.minPercent)
+
+// The tag that found rules are attached to. Defaults to the built-in Fields tag
+// but the user can pick any existing tag (or type a new one) to use instead.
+const targetTag = ref<string>(FIELDS_TAG)
+
+// Number of rules currently carrying the selected target tag.
+const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const modeLabel = computed(() =>
   props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
@@ -48,7 +57,13 @@ function onRun(config: AnalysisRunConfig): void {
     blockWidth: blockWidth.value,
     blockHeight: blockHeight.value,
     minPercent: minPercent.value,
+    targetTag: targetTag.value.trim() || FIELDS_TAG,
   })
+}
+
+// Untags every rule the last completed run had tagged (does not touch earlier runs).
+function onUndoFound(): void {
+  emit('undo-found')
 }
 </script>
 
@@ -80,13 +95,17 @@ function onRun(config: AnalysisRunConfig): void {
         <label class="ca-label">
           Separate run: the W×H generation is cut into patches {{ blockWidth }}×{{ blockHeight }},
           patches are compared up to a horizontal shift (so field drift doesn't break a
-          match). The tag «{{ FIELDS_TAG }}» is applied if the most frequent patch covers at least
+          match). The tag «{{ targetTag.trim() || FIELDS_TAG }}» is applied if the most frequent patch covers at least
           K% of all patches. The tag is independent and can coexist with any class
           (currently {{ modeLabel }} for {{ stateCount }} states).
         </label>
       </template>
 
       <template #params>
+        <div class="ca-inline">
+          <TagTargetSelector v-model="targetTag" :tags="tags" :default-tag="FIELDS_TAG" :running="running" />
+        </div>
+
         <div class="ca-inline">
           <label class="ca-field">
             <span class="ca-field-cap">patch W</span>
@@ -104,7 +123,15 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #footer>
-        <div class="ca-meter">total tagged «{{ FIELDS_TAG }}»: {{ tagCount }}</div>
+        <TagFoundActions
+          :target-tag="targetTag.trim() || FIELDS_TAG"
+          :tag-count="targetTagCount"
+          :found="found"
+          :running="running"
+          :can-undo-found="canUndoFound"
+          @undo-found="onUndoFound"
+          @clear-tag="(tag) => emit('clear-tag', tag)"
+        />
       </template>
     </AnalysisRunControls>
   </div>

@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { CHAOS_DEFAULTS, CHAOS_TAG } from '../../constants/ca'
 import type { AnalysisRunConfig, TaggedRule } from '../../types/ca'
 import AnalysisRunControls from './AnalysisRunControls.vue'
+import TagTargetSelector from './TagTargetSelector.vue'
+import TagFoundActions from './TagFoundActions.vue'
 
 const props = defineProps<{
   stateCount: number
@@ -15,17 +17,24 @@ const props = defineProps<{
   currentCode: number
   currentName?: string
   found: number
-  tagCount: number
+  canUndoFound?: boolean
   tags: string[]
   tagCounts: Record<string, number>
   rules: TaggedRule[]
 }>()
 
-const emit = defineEmits(['run', 'stop'])
+const emit = defineEmits(['run', 'stop', 'undo-found', 'clear-tag'])
 
 const cutTop = ref(CHAOS_DEFAULTS.cutTop)
 const blockSize = ref(CHAOS_DEFAULTS.blockSize)
 const maxDominant = ref(CHAOS_DEFAULTS.maxDominant)
+
+// The tag that found rules are attached to. Defaults to the built-in NoChaos tag
+// but the user can pick any existing tag (or type a new one) to use instead.
+const targetTag = ref<string>(CHAOS_TAG)
+
+// Number of rules currently carrying the selected target tag.
+const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const modeLabel = computed(() =>
   props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
@@ -48,7 +57,13 @@ function onRun(config: AnalysisRunConfig): void {
     cutTop: cutTop.value,
     blockSize: blockSize.value,
     maxDominant: maxDominant.value,
+    targetTag: targetTag.value.trim() || CHAOS_TAG,
   })
+}
+
+// Untags every rule the last completed run had tagged (does not touch earlier runs).
+function onUndoFound(): void {
+  emit('undo-found')
 }
 </script>
 
@@ -81,7 +96,7 @@ function onRun(config: AnalysisRunConfig): void {
           Separate run: the top {{ cutTop }}% of the W×H generation is cut off (transient process),
           the rest is reduced to {{ blockSize }}×{{ blockSize }} patterns (like in the "to patterns" block).
           A rule is considered chaotic if the most frequent ("dominant") pattern doesn't stand out from
-          the distribution — it covers no more than {{ maxDominant }}% of all blocks. The tag «{{ CHAOS_TAG }}»
+          the distribution — it covers no more than {{ maxDominant }}% of all blocks. The tag «{{ targetTag.trim() || CHAOS_TAG }}»
           is applied to rules WITHOUT chaos (to filter out chaotic ones): wild chaos like rule 30 doesn't get
           the tag, while rules with a dominant repeating background (e.g. rule 110) do.
           The tag is independent and can coexist with any class (currently {{ modeLabel }} for
@@ -90,6 +105,10 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #params>
+        <div class="ca-inline">
+          <TagTargetSelector v-model="targetTag" :tags="tags" :default-tag="CHAOS_TAG" :running="running" />
+        </div>
+
         <div class="ca-inline">
           <label class="ca-field">
             <span class="ca-field-cap">cut off top, %</span>
@@ -107,7 +126,15 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #footer>
-        <div class="ca-meter">total tagged «{{ CHAOS_TAG }}»: {{ tagCount }}</div>
+        <TagFoundActions
+          :target-tag="targetTag.trim() || CHAOS_TAG"
+          :tag-count="targetTagCount"
+          :found="found"
+          :running="running"
+          :can-undo-found="canUndoFound"
+          @undo-found="onUndoFound"
+          @clear-tag="(tag) => emit('clear-tag', tag)"
+        />
       </template>
     </AnalysisRunControls>
   </div>

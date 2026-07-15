@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import '../assets/cellular-automaton.css'
 import { useCellularAutomaton } from '../composables/useCellularAutomaton'
 import { useRuleTags } from '../composables/useRuleTags'
@@ -102,6 +102,7 @@ const {
   tagsForRule,
   toggleTagOnRule,
   deleteRule,
+  clearTag,
   next: nextTaggedRule,
   prev: prevTaggedRule,
   jumpTo,
@@ -109,11 +110,7 @@ const {
   importFromFile,
   activeRule,
   applyAnalysisTag,
-  applyFieldsTag,
-  applyGlidersTag,
-  applyCustomSearchTag,
-  applyLinesTag,
-  applyChaosTag,
+  applyOrthogonalTag,
 } = useRuleTags()
 
 const {
@@ -310,7 +307,12 @@ interface RunFieldsAnalysisPayload {
   sourceMode: AnalysisSourceMode
   sampleCount: number
   tags: string[]
+  targetTag: string
 }
+
+// Rules tagged by the CURRENT (or most recently finished) fields run, kept so
+// "undo found" can untag exactly them (with the tag that run used).
+const fieldsFoundRules = ref<{ parts: RuleParts; snapshot: RuleSnapshot; tag: string }[]>([])
 
 function onRunFieldsAnalysis({
   from,
@@ -324,7 +326,16 @@ function onRunFieldsAnalysis({
   sourceMode,
   sampleCount,
   tags: selectedTags,
+  targetTag,
 }: RunFieldsAnalysisPayload): void {
+  const tag = String(targetTag || '').trim() || FIELDS_TAG
+  fieldsFoundRules.value = []
+  const apply = (hasFields: boolean, parts: RuleParts, snapshot: RuleSnapshot): void => {
+    if (hasFields) {
+      fieldsFoundRules.value.push({ parts, snapshot, tag })
+    }
+    applyOrthogonalTag(tag, hasFields, parts, snapshot)
+  }
   startFieldsAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
@@ -339,8 +350,22 @@ function onRunFieldsAnalysis({
     sourceMode,
     sampleCount,
     rules: sourceMode === 'tags' ? rulesForTags(selectedTags) : undefined,
-    apply: applyFieldsTag,
+    apply,
   })
+}
+
+// Untags every rule the last completed fields run had tagged.
+function onUndoFieldsFound(): void {
+  for (const { parts, snapshot, tag } of fieldsFoundRules.value) {
+    applyOrthogonalTag(tag, false, parts, snapshot)
+  }
+  fieldsFoundRules.value = []
+}
+
+// Wipes the given tag off every rule in the library, regardless of which run tagged them.
+function onClearFieldsTag(tagName: string): void {
+  clearTag(String(tagName || '').trim() || FIELDS_TAG)
+  fieldsFoundRules.value = []
 }
 
 interface RunGlidersAnalysisPayload {
@@ -363,7 +388,12 @@ interface RunGlidersAnalysisPayload {
   sourceMode: AnalysisSourceMode
   sampleCount: number
   tags: string[]
+  targetTag: string
 }
+
+// Rules tagged by the CURRENT (or most recently finished) gliders run, kept so
+// "undo found" can untag exactly them (with the tag that run used).
+const glidersFoundRules = ref<{ parts: RuleParts; snapshot: RuleSnapshot; tag: string }[]>([])
 
 function onRunGlidersAnalysis({
   from,
@@ -385,7 +415,16 @@ function onRunGlidersAnalysis({
   sourceMode,
   sampleCount,
   tags: selectedTags,
+  targetTag,
 }: RunGlidersAnalysisPayload): void {
+  const tag = String(targetTag || '').trim() || GLIDERS_TAG
+  glidersFoundRules.value = []
+  const apply = (hasGliders: boolean, parts: RuleParts, snapshot: RuleSnapshot): void => {
+    if (hasGliders) {
+      glidersFoundRules.value.push({ parts, snapshot, tag })
+    }
+    applyOrthogonalTag(tag, hasGliders, parts, snapshot)
+  }
   startGlidersAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
@@ -408,8 +447,22 @@ function onRunGlidersAnalysis({
     sourceMode,
     sampleCount,
     rules: sourceMode === 'tags' ? rulesForTags(selectedTags) : undefined,
-    apply: applyGlidersTag,
+    apply,
   })
+}
+
+// Untags every rule the last completed gliders run had tagged.
+function onUndoGlidersFound(): void {
+  for (const { parts, snapshot, tag } of glidersFoundRules.value) {
+    applyOrthogonalTag(tag, false, parts, snapshot)
+  }
+  glidersFoundRules.value = []
+}
+
+// Wipes the given tag off every rule in the library, regardless of which run tagged them.
+function onClearGlidersTag(tagName: string): void {
+  clearTag(String(tagName || '').trim() || GLIDERS_TAG)
+  glidersFoundRules.value = []
 }
 
 interface RunCustomSearchPayload {
@@ -422,7 +475,13 @@ interface RunCustomSearchPayload {
   sourceMode: AnalysisSourceMode
   sampleCount: number
   tags: string[]
+  targetTag: string
 }
+
+// Rules tagged by the CURRENT (or most recently finished) custom-search run, kept
+// so "undo found" can untag exactly them (with the tag that run used) without
+// touching earlier runs' results.
+const customSearchFoundRules = ref<{ parts: RuleParts; snapshot: RuleSnapshot; tag: string }[]>([])
 
 function onRunCustomSearch({
   from,
@@ -434,7 +493,16 @@ function onRunCustomSearch({
   sourceMode,
   sampleCount,
   tags: selectedTags,
+  targetTag,
 }: RunCustomSearchPayload): void {
+  const tag = String(targetTag || '').trim() || CUSTOM_SEARCH_TAG
+  customSearchFoundRules.value = []
+  const apply = (passes: boolean, parts: RuleParts, snapshot: RuleSnapshot): void => {
+    if (passes) {
+      customSearchFoundRules.value.push({ parts, snapshot, tag })
+    }
+    applyOrthogonalTag(tag, passes, parts, snapshot)
+  }
   startCustomSearch({
     stateCount: stateCount.value,
     mode: mode.value,
@@ -447,8 +515,23 @@ function onRunCustomSearch({
     sourceMode,
     sampleCount,
     rules: sourceMode === 'tags' ? rulesForTags(selectedTags) : undefined,
-    apply: applyCustomSearchTag,
+    apply,
   })
+}
+
+// Untags every rule the last completed custom-search run had tagged ("undo found"),
+// using the tag that run actually applied.
+function onUndoCustomSearchFound(): void {
+  for (const { parts, snapshot, tag } of customSearchFoundRules.value) {
+    applyOrthogonalTag(tag, false, parts, snapshot)
+  }
+  customSearchFoundRules.value = []
+}
+
+// Wipes the given tag off every rule in the library, regardless of which run tagged them.
+function onClearCustomSearchTag(tagName: string): void {
+  clearTag(String(tagName || '').trim() || CUSTOM_SEARCH_TAG)
+  customSearchFoundRules.value = []
 }
 
 interface RunLinesAnalysisPayload {
@@ -466,7 +549,12 @@ interface RunLinesAnalysisPayload {
   sourceMode: AnalysisSourceMode
   sampleCount: number
   tags: string[]
+  targetTag: string
 }
+
+// Rules tagged by the CURRENT (or most recently finished) no-lines run, kept so
+// "undo found" can untag exactly them (with the tag that run used).
+const linesFoundRules = ref<{ parts: RuleParts; snapshot: RuleSnapshot; tag: string }[]>([])
 
 function onRunLinesAnalysis({
   from,
@@ -483,7 +571,16 @@ function onRunLinesAnalysis({
   sourceMode,
   sampleCount,
   tags: selectedTags,
+  targetTag,
 }: RunLinesAnalysisPayload): void {
+  const tag = String(targetTag || '').trim() || LINES_TAG
+  linesFoundRules.value = []
+  const apply = (noLines: boolean, parts: RuleParts, snapshot: RuleSnapshot): void => {
+    if (noLines) {
+      linesFoundRules.value.push({ parts, snapshot, tag })
+    }
+    applyOrthogonalTag(tag, noLines, parts, snapshot)
+  }
   startLinesAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
@@ -501,8 +598,22 @@ function onRunLinesAnalysis({
     sourceMode,
     sampleCount,
     rules: sourceMode === 'tags' ? rulesForTags(selectedTags) : undefined,
-    apply: applyLinesTag,
+    apply,
   })
+}
+
+// Untags every rule the last completed no-lines run had tagged.
+function onUndoLinesFound(): void {
+  for (const { parts, snapshot, tag } of linesFoundRules.value) {
+    applyOrthogonalTag(tag, false, parts, snapshot)
+  }
+  linesFoundRules.value = []
+}
+
+// Wipes the given tag off every rule in the library, regardless of which run tagged them.
+function onClearLinesTag(tagName: string): void {
+  clearTag(String(tagName || '').trim() || LINES_TAG)
+  linesFoundRules.value = []
 }
 
 interface RunChaosAnalysisPayload {
@@ -517,7 +628,12 @@ interface RunChaosAnalysisPayload {
   sourceMode: AnalysisSourceMode
   sampleCount: number
   tags: string[]
+  targetTag: string
 }
+
+// Rules tagged by the CURRENT (or most recently finished) chaos run, kept so
+// "undo found" can untag exactly them (with the tag that run used).
+const chaosFoundRules = ref<{ parts: RuleParts; snapshot: RuleSnapshot; tag: string }[]>([])
 
 function onRunChaosAnalysis({
   from,
@@ -531,7 +647,16 @@ function onRunChaosAnalysis({
   sourceMode,
   sampleCount,
   tags: selectedTags,
+  targetTag,
 }: RunChaosAnalysisPayload): void {
+  const tag = String(targetTag || '').trim() || CHAOS_TAG
+  chaosFoundRules.value = []
+  const apply = (noChaos: boolean, parts: RuleParts, snapshot: RuleSnapshot): void => {
+    if (noChaos) {
+      chaosFoundRules.value.push({ parts, snapshot, tag })
+    }
+    applyOrthogonalTag(tag, noChaos, parts, snapshot)
+  }
   startChaosAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
@@ -546,8 +671,22 @@ function onRunChaosAnalysis({
     sourceMode,
     sampleCount,
     rules: sourceMode === 'tags' ? rulesForTags(selectedTags) : undefined,
-    apply: applyChaosTag,
+    apply,
   })
+}
+
+// Untags every rule the last completed chaos run had tagged.
+function onUndoChaosFound(): void {
+  for (const { parts, snapshot, tag } of chaosFoundRules.value) {
+    applyOrthogonalTag(tag, false, parts, snapshot)
+  }
+  chaosFoundRules.value = []
+}
+
+// Wipes the given tag off every rule in the library, regardless of which run tagged them.
+function onClearChaosTag(tagName: string): void {
+  clearTag(String(tagName || '').trim() || CHAOS_TAG)
+  chaosFoundRules.value = []
 }
 
 interface RunSubAnalysisPayload {
@@ -745,12 +884,14 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :progress="fieldsProgress"
         :current-code="fieldsCurrentCode"
         :found="fieldsFound"
-        :tag-count="tagCounts[FIELDS_TAG] || 0"
+        :can-undo-found="fieldsFoundRules.length > 0"
         :tags="tags"
         :tag-counts="tagCounts"
         :rules="rules"
         @run="onRunFieldsAnalysis"
         @stop="stopFieldsAnalysis"
+        @undo-found="onUndoFieldsFound"
+        @clear-tag="onClearFieldsTag"
       />
     </div>
 
@@ -765,12 +906,14 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :progress="glidersProgress"
         :current-code="glidersCurrentCode"
         :found="glidersFound"
-        :tag-count="tagCounts[GLIDERS_TAG] || 0"
+        :can-undo-found="glidersFoundRules.length > 0"
         :tags="tags"
         :tag-counts="tagCounts"
         :rules="rules"
         @run="onRunGlidersAnalysis"
         @stop="stopGlidersAnalysis"
+        @undo-found="onUndoGlidersFound"
+        @clear-tag="onClearGlidersTag"
       />
     </div>
 
@@ -785,12 +928,14 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :progress="customProgress"
         :current-code="customCurrentCode"
         :found="customFound"
-        :tag-count="tagCounts[CUSTOM_SEARCH_TAG] || 0"
+        :can-undo-found="customSearchFoundRules.length > 0"
         :tags="tags"
         :tag-counts="tagCounts"
         :rules="rules"
         @run="onRunCustomSearch"
         @stop="stopCustomSearch"
+        @undo-found="onUndoCustomSearchFound"
+        @clear-tag="onClearCustomSearchTag"
       />
     </div>
 
@@ -805,12 +950,14 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :progress="linesProgress"
         :current-code="linesCurrentCode"
         :found="linesFound"
-        :tag-count="tagCounts[LINES_TAG] || 0"
+        :can-undo-found="linesFoundRules.length > 0"
         :tags="tags"
         :tag-counts="tagCounts"
         :rules="rules"
         @run="onRunLinesAnalysis"
         @stop="stopLinesAnalysis"
+        @undo-found="onUndoLinesFound"
+        @clear-tag="onClearLinesTag"
       />
     </div>
 
@@ -825,12 +972,14 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :progress="chaosProgress"
         :current-code="chaosCurrentCode"
         :found="chaosFound"
-        :tag-count="tagCounts[CHAOS_TAG] || 0"
+        :can-undo-found="chaosFoundRules.length > 0"
         :tags="tags"
         :tag-counts="tagCounts"
         :rules="rules"
         @run="onRunChaosAnalysis"
         @stop="stopChaosAnalysis"
+        @undo-found="onUndoChaosFound"
+        @clear-tag="onClearChaosTag"
       />
     </div>
 

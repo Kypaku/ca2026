@@ -1,5 +1,5 @@
 import { reactive, ref, computed, watch } from 'vue'
-import { ANALYSIS_TAGS, FIELDS_TAG, GLIDERS_TAG, CUSTOM_SEARCH_TAG, LINES_TAG, CHAOS_TAG } from '../constants/ca'
+import { ANALYSIS_TAGS } from '../constants/ca'
 import type { RuleParts, RuleSnapshot, TaggedRule } from '../types/ca'
 import {
   RULES_STORAGE_KEY,
@@ -172,6 +172,33 @@ export function useRuleTags() {
   }
 
   /**
+   * Strips `tagName` from every rule that carries it (dropping the rule record
+   * entirely if that was its only tag). Unlike {@link deleteTag} the tag itself
+   * stays registered in `tags`, so an orthogonal analysis tag (e.g. `customSearch`)
+   * keeps working afterwards with a zero count. Used for a "clear all" wipe of one
+   * tag without disturbing user-created tags or other rule tags.
+   */
+  function clearTag(tagName: string): void {
+    for (let i = rules.length - 1; i >= 0; i--) {
+      const rule = rules[i]
+      const idx = rule.tags.indexOf(tagName)
+      if (idx === -1) {
+        continue
+      }
+      rule.tags.splice(idx, 1)
+      if (!rule.tags.length) {
+        rules.splice(i, 1)
+      }
+    }
+    if (activeTag.value === tagName) {
+      const total = rulesForActiveTag.value.length
+      if (activeIndex.value >= total) {
+        activeIndex.value = Math.max(0, total - 1)
+      }
+    }
+  }
+
+  /**
    * Attaches an analysis class tag to the rule identified by `parts`, creating the
    * tag and/or the rule record if needed. Any previously assigned analysis tag on
    * that rule is replaced (a rule has at most one class), while user tags are kept.
@@ -241,45 +268,17 @@ export function useRuleTags() {
   }
 
   /**
-   * (De)attaches the independent `Fields` tag to the rule identified by `parts`
-   * according to `hasFields`.
+   * (De)attaches an arbitrary orthogonal tag (`tagName`) to the rule identified by
+   * `parts` according to `active`, registering the tag if needed. Used by every
+   * batch analysis (Fields/Gliders/customSearch/NoLines/NoChaos) so its found rules
+   * can be tagged with a user-chosen tag instead of a hardcoded built-in one.
    */
-  function applyFieldsTag(hasFields: boolean, parts: RuleParts, snapshot: RuleSnapshot): void {
-    setOrthogonalTag(FIELDS_TAG, hasFields, parts, snapshot)
-  }
-
-  /**
-   * (De)attaches the independent `Gliders` tag to the rule identified by `parts`
-   * according to `hasGliders`.
-   */
-  function applyGlidersTag(hasGliders: boolean, parts: RuleParts, snapshot: RuleSnapshot): void {
-    setOrthogonalTag(GLIDERS_TAG, hasGliders, parts, snapshot)
-  }
-
-  /**
-   * (De)attaches the independent `customSearch` tag to the rule identified by
-   * `parts` according to `passes` (true = the rule contained NONE of the negative
-   * templates).
-   */
-  function applyCustomSearchTag(passes: boolean, parts: RuleParts, snapshot: RuleSnapshot): void {
-    setOrthogonalTag(CUSTOM_SEARCH_TAG, passes, parts, snapshot)
-  }
-
-  /**
-   * (De)attaches the independent `NoLines` tag to the rule identified by `parts`
-   * according to `noLines` (true = no full-height lines were found in the diagram).
-   */
-  function applyLinesTag(noLines: boolean, parts: RuleParts, snapshot: RuleSnapshot): void {
-    setOrthogonalTag(LINES_TAG, noLines, parts, snapshot)
-  }
-
-  /**
-   * (De)attaches the independent `NoChaos` tag to the rule identified by `parts`
-   * according to `noChaos` (true = the rule does NOT look chaotic — its most
-   * frequent M×M pattern sticks out of the distribution). Used to filter chaos out.
-   */
-  function applyChaosTag(noChaos: boolean, parts: RuleParts, snapshot: RuleSnapshot): void {
-    setOrthogonalTag(CHAOS_TAG, noChaos, parts, snapshot)
+  function applyOrthogonalTag(tagName: string, active: boolean, parts: RuleParts, snapshot: RuleSnapshot): void {
+    const clean = String(tagName || '').trim()
+    if (!clean) {
+      return
+    }
+    setOrthogonalTag(clean, active, parts, snapshot)
   }
 
   function next(): void {
@@ -363,12 +362,9 @@ export function useRuleTags() {
     tagsForRule,
     toggleTagOnRule,
     deleteRule,
+    clearTag,
     applyAnalysisTag,
-    applyFieldsTag,
-    applyGlidersTag,
-    applyCustomSearchTag,
-    applyLinesTag,
-    applyChaosTag,
+    applyOrthogonalTag,
     next,
     prev,
     jumpTo,

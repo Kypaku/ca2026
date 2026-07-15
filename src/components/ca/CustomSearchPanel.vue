@@ -15,6 +15,8 @@ import {
 } from '../../constants/ca'
 import type { AnalysisRunConfig, CustomPattern, TaggedRule } from '../../types/ca'
 import AnalysisRunControls from './AnalysisRunControls.vue'
+import TagTargetSelector from './TagTargetSelector.vue'
+import TagFoundActions from './TagFoundActions.vue'
 
 const props = defineProps<{
   stateCount: number
@@ -27,13 +29,13 @@ const props = defineProps<{
   currentCode: number
   currentName?: string
   found: number
-  tagCount: number
+  canUndoFound?: boolean
   tags: string[]
   tagCounts: Record<string, number>
   rules: TaggedRule[]
 }>()
 
-const emit = defineEmits(['run', 'stop'])
+const emit = defineEmits(['run', 'stop', 'undo-found', 'clear-tag'])
 
 const MIN_PW = 1
 const MAX_PW = 24
@@ -117,6 +119,13 @@ watch(
 const modeLabel = computed(() =>
   props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
 )
+
+// The tag that found rules are attached to. Defaults to the built-in customSearch
+// tag but the user can pick any existing tag (or type a new one) to use instead.
+const targetTag = ref<string>(CUSTOM_SEARCH_TAG)
+
+// Number of rules currently carrying the selected target tag.
+const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const maxState = computed(() => Math.max(1, props.stateCount - 1))
 
@@ -304,10 +313,17 @@ async function onFileChosen(event: Event): Promise<void> {
 }
 
 function onRun(config: AnalysisRunConfig): void {
+  const tag = targetTag.value.trim() || CUSTOM_SEARCH_TAG
   emit('run', {
     ...config,
     negativePatterns: JSON.parse(JSON.stringify(usablePatterns.value)) as CustomPattern[],
+    targetTag: tag,
   })
+}
+
+// Untags every rule the last completed run had tagged (does not touch earlier runs).
+function onUndoFound(): void {
+  emit('undo-found')
 }
 </script>
 
@@ -344,7 +360,7 @@ function onRun(config: AnalysisRunConfig): void {
           a match (they define equality, not a fixed state). A variable can fill
           the whole field too. This is a block of <b>negative</b>
           templates: if any of them appears in the rule's spacetime diagram,
-          the rule is <b>excluded</b>. The tag «{{ CUSTOM_SEARCH_TAG }}» is only given to
+          the rule is <b>excluded</b>. The tag «{{ targetTag.trim() || CUSTOM_SEARCH_TAG }}» is only given to
           rules where none of the negative templates are found. Clicking a cell cycles its value
           (∗ → 0 → 1 → … → x1 → x2), right-click cycles backward. The template set can be saved to disk and
           loaded back. The tag is independent and can coexist with any class (currently {{ modeLabel }} for
@@ -353,6 +369,10 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #params>
+        <div class="ca-cs-toolbar">
+          <TagTargetSelector v-model="targetTag" :tags="tags" :default-tag="CUSTOM_SEARCH_TAG" :running="running" />
+        </div>
+
         <div class="ca-cs-toolbar">
           <span class="ca-field-cap">negative templates ({{ patterns.length }})</span>
           <button type="button" @click="addPattern" :disabled="running">＋ template</button>
@@ -437,7 +457,15 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #footer>
-        <div class="ca-meter">total tagged «{{ CUSTOM_SEARCH_TAG }}»: {{ tagCount }}</div>
+        <TagFoundActions
+          :target-tag="targetTag.trim() || CUSTOM_SEARCH_TAG"
+          :tag-count="targetTagCount"
+          :found="found"
+          :running="running"
+          :can-undo-found="canUndoFound"
+          @undo-found="onUndoFound"
+          @clear-tag="(tag) => emit('clear-tag', tag)"
+        />
       </template>
     </AnalysisRunControls>
   </div>

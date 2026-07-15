@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { LINES_DEFAULTS, LINES_TAG } from '../../constants/ca'
 import type { AnalysisRunConfig, TaggedRule } from '../../types/ca'
 import AnalysisRunControls from './AnalysisRunControls.vue'
+import TagTargetSelector from './TagTargetSelector.vue'
+import TagFoundActions from './TagFoundActions.vue'
 
 const props = defineProps<{
   stateCount: number
@@ -15,13 +17,13 @@ const props = defineProps<{
   currentCode: number
   currentName?: string
   found: number
-  tagCount: number
+  canUndoFound?: boolean
   tags: string[]
   tagCounts: Record<string, number>
   rules: TaggedRule[]
 }>()
 
-const emit = defineEmits(['run', 'stop'])
+const emit = defineEmits(['run', 'stop', 'undo-found', 'clear-tag'])
 
 const cutTop = ref(LINES_DEFAULTS.cutTop)
 const minBlock = ref(LINES_DEFAULTS.minBlock)
@@ -29,6 +31,13 @@ const maxBlock = ref(LINES_DEFAULTS.maxBlock)
 const blockStep = ref(LINES_DEFAULTS.blockStep)
 const lineCount = ref(LINES_DEFAULTS.lineCount)
 const ignoreBackground = ref(LINES_DEFAULTS.ignoreBackground)
+
+// The tag that found rules are attached to. Defaults to the built-in NoLines tag
+// but the user can pick any existing tag (or type a new one) to use instead.
+const targetTag = ref<string>(LINES_TAG)
+
+// Number of rules currently carrying the selected target tag.
+const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const modeLabel = computed(() =>
   props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
@@ -56,7 +65,13 @@ function onRun(config: AnalysisRunConfig): void {
     blockStep: blockStep.value,
     lineCount: lineCount.value,
     ignoreBackground: ignoreBackground.value,
+    targetTag: targetTag.value.trim() || LINES_TAG,
   })
+}
+
+// Untags every rule the last completed run had tagged (does not touch earlier runs).
+function onUndoFound(): void {
+  emit('undo-found')
 }
 </script>
 
@@ -91,13 +106,17 @@ function onRun(config: AnalysisRunConfig): void {
           single color-pattern spanning the full height are searched for — from y0 to the bottom. A line
           counts if it is straight (vertical) or slanted at any angle (the next cell is to the side, below, or
           diagonal, any sideways drift). If {{ lineCount }} lines aren't reached in any direction,
-          the pattern size M is increased up to {{ maxBlock }}. The tag «{{ LINES_TAG }}»
+          the pattern size M is increased up to {{ maxBlock }}. The tag «{{ targetTag.trim() || LINES_TAG }}»
           is applied to rules where no lines were found at all. The tag is independent and can coexist
           with any class (currently {{ modeLabel }} for {{ stateCount }} states).
         </label>
       </template>
 
       <template #params>
+        <div class="ca-inline">
+          <TagTargetSelector v-model="targetTag" :tags="tags" :default-tag="LINES_TAG" :running="running" />
+        </div>
+
         <div class="ca-inline">
           <label class="ca-field">
             <span class="ca-field-cap">cut off top, %</span>
@@ -133,7 +152,15 @@ function onRun(config: AnalysisRunConfig): void {
       </template>
 
       <template #footer>
-        <div class="ca-meter">total tagged «{{ LINES_TAG }}»: {{ tagCount }}</div>
+        <TagFoundActions
+          :target-tag="targetTag.trim() || LINES_TAG"
+          :tag-count="targetTagCount"
+          :found="found"
+          :running="running"
+          :can-undo-found="canUndoFound"
+          @undo-found="onUndoFound"
+          @clear-tag="(tag) => emit('clear-tag', tag)"
+        />
       </template>
     </AnalysisRunControls>
   </div>
