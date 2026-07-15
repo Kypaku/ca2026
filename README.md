@@ -6,35 +6,12 @@ TypeScript + Vite. It lets you run automata with an arbitrary number of states, 
 analyses over many rules (behavior classification, field/glider/custom-pattern/line/chaos
 detection, and more), tagging rules along the way.
 
-![Screen of the app 1](images/screen1.jpg)
-![Screen of the app 2)](images/screen2.jpg)
-
 ### Demo
 
 [Demo](https://kypaku.github.io/pages/ca2026)
 
-## Stack
-
-- [Vue 3](https://vuejs.org/) (`<script setup lang="ts">`, Composition API)
-- TypeScript (strict mode, `noUnusedLocals`)
-- [Vite](https://vitejs.dev/) 6 + `vue-tsc`
-- Diagram rendering on `<canvas>` (no third-party visualization libraries)
-
-## Getting started
-
-```bash
-npm install
-npm run dev        # local dev server (Vite)
-npm run build      # type-check (vue-tsc -b) + production build
-npm run preview    # preview the production build
-npm run type-check # type-check only (vue-tsc --noEmit)
-```
-
-> On an older Node.js (e.g. 16.x), `npm run dev` / `npm run build` may fail with
-> `crypto$2.getRandomValues is not a function` — this is a Vite 6 / old Node.js
-> incompatibility, not an application code issue. Building/running dev requires a newer
-> Node.js (18+). `npm run type-check` still works fine on Node 16 — use it as the source of
-> truth when checking for type errors.
+<img src="images/screen1.jpg" width="500" alt="Скриншот">
+<img src="images/screen2.jpg" width="500" alt="Скриншот">
 
 ## Features
 
@@ -46,8 +23,6 @@ npm run type-check # type-check only (vue-tsc --noEmit)
     encoded as a single rule code.
 - Configurable diagram width/height, initial state (single center cell or random noise with a
   given density), random rule generation, manual code/seed entry.
-- The diagram is drawn on a `<canvas>`; a state legend and the current rule status are shown
-  alongside it.
 
 ### Automated rule analysis
 Each analysis type is an independent panel that scans a range of rule codes (or a random
@@ -74,6 +49,31 @@ rule sources:
 ### Tags
 Found or manually saved rules can be tagged and browsed/filtered in the tags panel
 (`ca/TagsPanel.vue`); data persists to `localStorage`.
+
+
+## Stack
+
+- [Vue 3](https://vuejs.org/) (`<script setup lang="ts">`, Composition API)
+- TypeScript (strict mode, `noUnusedLocals`)
+- [Vite](https://vitejs.dev/) 6 + `vue-tsc`
+- Diagram rendering on `<canvas>` (no third-party visualization libraries)
+
+## Getting started
+
+```bash
+npm install
+npm run dev        # local dev server (Vite)
+npm run build      # type-check (vue-tsc -b) + production build
+npm run preview    # preview the production build
+npm run type-check # type-check only (vue-tsc --noEmit)
+```
+
+> On an older Node.js (e.g. 16.x), `npm run dev` / `npm run build` may fail with
+> `crypto$2.getRandomValues is not a function` — this is a Vite 6 / old Node.js
+> incompatibility, not an application code issue. Building/running dev requires a newer
+> Node.js (18+). `npm run type-check` still works fine on Node 16 — use it as the source of
+> truth when checking for type errors.
+
 
 ## Project structure
 
