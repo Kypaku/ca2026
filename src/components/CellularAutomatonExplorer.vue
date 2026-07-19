@@ -80,6 +80,7 @@ const {
   onNoiseNumberInput,
   onNoisePreset,
   onRuleInput,
+  onLegendCellClick,
   onSeedInput,
   onRandomRule,
   initialize,
@@ -824,6 +825,7 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
       :key-text="keyText"
       :legend-items="legendItems"
       :legend-mode-local="mode === 'local'"
+      @cell-click="onLegendCellClick"
     />
 
     <canvas

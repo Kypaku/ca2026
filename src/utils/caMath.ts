@@ -114,6 +114,40 @@ export function localRuleToCode(rule: string, states: number): number {
 }
 
 /**
+ * Returns a copy of a local rule string with the digit at `index` advanced
+ * to the next state (wrapping from the highest state back to 0). Used to
+ * let the user click a legend cell and step its output value.
+ */
+export function cycleLocalRuleDigit(rule: string, states: number, index: number): string {
+  const config = getConfig(states)
+  const clean = padRight(sanitizeStateString(rule, config.localDigits, states), config.localDigits)
+  if (index < 0 || index >= clean.length) {
+    return clean
+  }
+  const current = clean.charCodeAt(index) - 48
+  const next = (current + 1) % states
+  return clean.slice(0, index) + String(next) + clean.slice(index + 1)
+}
+
+/**
+ * Returns a new totalistic rule code with the output for neighbor-sum
+ * `sumIndex` advanced to the next state (wrapping from the highest state
+ * back to 0). Mirrors `cycleLocalRuleDigit` for totalistic mode.
+ */
+export function cycleTotalisticDigit(code: number, states: number, sumIndex: number): number {
+  const table = totalisticTable(code, states)
+  if (sumIndex < 0 || sumIndex >= table.length) {
+    return code
+  }
+  table[sumIndex] = (table[sumIndex] + 1) % states
+  let newCode = 0
+  for (let sum = table.length - 1; sum >= 0; sum--) {
+    newCode = newCode * states + table[sum]
+  }
+  return newCode
+}
+
+/**
  * Picks `count` rule codes from the inclusive [from, to] range: sequentially
  * when the range is no bigger than `count` (nothing to sample), otherwise a
  * set of unique random codes drawn uniformly from the range. Used to scan a

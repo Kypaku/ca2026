@@ -130,6 +130,7 @@ watch(palette, () => {
           </button>
         </div>
         <button type="button" @click="convert" :disabled="!hasGrid">▦ convert to patterns</button>
+        <button type="button" v-if="patternMap" @click="patternMap = null">✕ hide patterns</button>
       </div>
 
       <div class="ca-meter" v-if="!hasGrid">build the diagram first (field is empty)</div>

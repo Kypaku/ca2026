@@ -185,6 +185,13 @@
   border: 0.5px solid var(--ca-border);
   border-radius: 4px;
 }
+.ca-sq--clickable {
+  cursor: pointer;
+}
+.ca-sq--clickable:hover {
+  border-color: var(--ca-text-secondary);
+  box-shadow: 0 0 0 2px var(--ca-border);
+}
 .ca-cap {
   font-family: ui-monospace, monospace;
   font-size: 10px;

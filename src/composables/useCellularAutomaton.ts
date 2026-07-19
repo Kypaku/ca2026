@@ -12,6 +12,8 @@ import {
   codeToLocalRule,
   normalizeStateCount,
   localCodeExceedsSafeInteger,
+  cycleLocalRuleDigit,
+  cycleTotalisticDigit,
 } from '../utils/caMath'
 import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
 import type { RenderContext } from '../utils/caLargeRender'
@@ -420,6 +422,25 @@ export function useCellularAutomaton() {
     run()
   }
 
+  /**
+   * Clicking a legend square steps that cell's output value to the next
+   * state (wrapping back to 0): the neighbor-sum output in totalistic mode,
+   * or the local rule digit at that neighborhood index in local mode.
+   */
+  function onLegendCellClick(index: number): void {
+    if (mode.value === 'totalistic') {
+      totalisticCodes[stateCount.value] = cycleTotalisticDigit(totalisticCodes[stateCount.value], stateCount.value, index)
+      syncLocalRule(false)
+    } else {
+      const nextRule = cycleLocalRuleDigit(currentLocalRule(), stateCount.value, index)
+      ruleInputValue.value = nextRule
+      localRules[stateCount.value] = nextRule
+      localRuleDirty[stateCount.value] = true
+      updateRuleStatus()
+    }
+    refresh()
+  }
+
   function onRandomRule(): void {
     const config = activeConfig()
     if (mode.value === 'totalistic') {
@@ -584,6 +605,7 @@ export function useCellularAutomaton() {
     onRuleInput,
     onSeedInput,
     onRandomRule,
+    onLegendCellClick,
     initialize: init3AndRefresh,
     captureRuleSnapshot,
     applyRuleSnapshot,

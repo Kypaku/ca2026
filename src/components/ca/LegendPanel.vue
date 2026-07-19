@@ -8,6 +8,10 @@ defineProps<{
   legendItems: LegendItem[]
   legendModeLocal: boolean
 }>()
+
+const emit = defineEmits<{
+  'cell-click': [index: number]
+}>()
 </script>
 
 <template>
@@ -18,7 +22,12 @@ defineProps<{
 
   <div class="ca-legend" :class="{ 'ca-legend--local': legendModeLocal }">
     <div class="ca-cell" v-for="(item, index) in legendItems" :key="index">
-      <div class="ca-sq" :style="{ background: item.color }"></div>
+      <div
+        class="ca-sq ca-sq--clickable"
+        :style="{ background: item.color }"
+        title="click to step to the next state"
+        @click="emit('cell-click', index)"
+      ></div>
       <div class="ca-cap">{{ item.caption }}</div>
     </div>
   </div>
