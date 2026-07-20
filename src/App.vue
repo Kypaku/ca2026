@@ -52,7 +52,7 @@ const { theme, toggleTheme } = useTheme()
         </button>
         <a
           class="icon-btn"
-          href="https://github.com/Kypaku"
+          href="https://github.com/Kypaku/ca2026"
           target="_blank"
           rel="noopener noreferrer"
           title="GitHub: Kypaku"
