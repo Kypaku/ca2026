@@ -16,6 +16,8 @@ const props = defineProps<{
   emissionInputValue: string
   collisionMode: string
   collisionFixed: number
+  energyEnabled: boolean
+  initialEnergy: number
 }>()
 
 const ruleMaxLength = computed(() => Math.pow(props.stateCount, 3))
@@ -32,6 +34,8 @@ const emit = defineEmits([
   'emission-input',
   'set-collision-mode',
   'collision-fixed-input',
+  'set-energy-enabled',
+  'initial-energy-input',
   'random-rule',
   'regen',
 ])
@@ -133,6 +137,28 @@ const emit = defineEmits([
                 @input="emit('collision-fixed-input', $event)"
               />
             </div>
+          </div>
+          <div class="ca-control">
+            <label class="ca-label ca-check">
+              <input
+                type="checkbox"
+                :checked="energyEnabled"
+                @change="emit('set-energy-enabled', ($event.target as HTMLInputElement).checked)"
+              />
+              energy: each live cell carries energy, split among its descendants and conserved per generation
+            </label>
+          </div>
+          <div class="ca-control" v-if="energyEnabled">
+            <label class="ca-label">Initial energy per live cell</label>
+            <input
+              class="ca-number"
+              type="number"
+              min="1"
+              step="1"
+              :value="initialEnergy"
+              @input="emit('initial-energy-input', $event)"
+            />
+            <div class="ca-meter">brightness shows how much energy a cell holds (relative to the peak)</div>
           </div>
         </template>
       </div>

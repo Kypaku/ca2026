@@ -58,6 +58,8 @@ const {
   emissionStatusText,
   collisionMode,
   collisionFixed,
+  energyEnabled,
+  initialEnergy,
   seedInputValue,
   seedLabelText,
   seedStatusText,
@@ -92,6 +94,8 @@ const {
   setCollisionMode,
   setCollisionFixed,
   onCollisionFixedInput,
+  setEnergyEnabled,
+  onInitialEnergyInput,
   initialize,
   captureRuleSnapshot,
   applyRuleSnapshot,
@@ -808,6 +812,8 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :emission-input-value="emissionInputValue"
         :collision-mode="collisionMode"
         :collision-fixed="collisionFixed"
+        :energy-enabled="energyEnabled"
+        :initial-energy="initialEnergy"
         @set-state-count="setStateCount"
         @set-mode="setMode"
         @code-slider-input="onCodeSliderInput"
@@ -817,6 +823,8 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         @emission-input="onEmissionInput"
         @set-collision-mode="setCollisionMode"
         @collision-fixed-input="onCollisionFixedInput"
+        @set-energy-enabled="setEnergyEnabled"
+        @initial-energy-input="onInitialEnergyInput"
         @random-rule="onRandomRule"
         @regen="run"
       />

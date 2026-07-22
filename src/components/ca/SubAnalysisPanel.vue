@@ -182,22 +182,22 @@ function onRun(config: AnalysisRunConfig): void {
           </label>
           <label class="ca-field">
             <span class="ca-field-cap">height H</span>
-            <input class="ca-number" type="number" min="1" max="4000" step="1" v-model.number="height" :disabled="running" />
+            <input class="ca-number" type="number" min="1" step="1" v-model.number="height" :disabled="running" />
           </label>
         </div>
 
         <div class="ca-inline">
           <label class="ca-field">
             <span class="ca-field-cap">width from</span>
-            <input class="ca-number" type="number" min="4" max="4000" step="1" v-model.number="minWidth" :disabled="running" />
+            <input class="ca-number" type="number" min="4" step="1" v-model.number="minWidth" :disabled="running" />
           </label>
           <label class="ca-field">
             <span class="ca-field-cap">width to</span>
-            <input class="ca-number" type="number" min="4" max="4000" step="1" v-model.number="maxWidth" :disabled="running" />
+            <input class="ca-number" type="number" min="4" step="1" v-model.number="maxWidth" :disabled="running" />
           </label>
           <label class="ca-field">
             <span class="ca-field-cap">width step</span>
-            <input class="ca-number" type="number" min="1" max="1000" step="1" v-model.number="step" :disabled="running" />
+            <input class="ca-number" type="number" min="1" step="1" v-model.number="step" :disabled="running" />
           </label>
         </div>
 

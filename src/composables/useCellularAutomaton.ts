@@ -25,7 +25,13 @@ import {
   DEFAULT_COLLISION_MODE,
   DEFAULT_COLLISION_FIXED,
 } from '../utils/caMath'
-import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
+import {
+  buildInitialRow,
+  extendDiagram,
+  extendDiagramEnergy,
+  renderDiagram,
+  renderDiagramEnergy,
+} from '../utils/caRender'
 import type { RenderContext } from '../utils/caLargeRender'
 import type { CaConfig, CollisionMode, InitMode, LegendItem, RuleMode, RuleSnapshot } from '../types/ca'
 
@@ -67,6 +73,12 @@ export function useCellularAutomaton() {
   const collisionMode = ref<CollisionMode>(DEFAULT_COLLISION_MODE)
   const collisionFixed = ref(DEFAULT_COLLISION_FIXED)
 
+  // Descendants energy mode: every live cell carries a conserved scalar energy.
+  // Global UI toggle (only meaningful in descendants mode) + the energy handed
+  // to each live cell of the initial row.
+  const energyEnabled = ref(false)
+  const initialEnergy = ref(10)
+
   const ruleInputValue = ref('')
   const seedInputValue = ref('')
   const codeValue = ref(1155)
@@ -87,6 +99,9 @@ export function useCellularAutomaton() {
   // Last rendered space-time diagram (H rows × W cells), kept so the "convert to
   // patterns" view can reduce exactly what is on screen without re-evolving.
   const grid = shallowRef<Uint8Array[]>([])
+  // Per-cell energy for the last render, aligned row-for-row with `grid` while
+  // energy mode is active (empty otherwise). Used to extend the simulation.
+  const energyGrid = shallowRef<Float64Array[]>([])
 
   // The numeric rule code is only meaningful while it fits in a JS double.
   // For local rules with 4+ states the code space (states^(states^3)) overflows
@@ -336,6 +351,23 @@ export function useCellularAutomaton() {
     const collisionModeValue = collisionMode.value
     const collisionFixedValue = currentCollisionFixed()
 
+    if (mode.value === 'descendants' && energyEnabled.value) {
+      const result = renderDiagramEnergy({
+        ctx,
+        width: W.value,
+        height: H.value,
+        config,
+        emission: emission as number[],
+        collisionMode: collisionModeValue,
+        collisionFixed: collisionFixedValue,
+        initialRow: buildInitialRowForState(),
+        initialEnergy: initialEnergy.value,
+      })
+      grid.value = result.states
+      energyGrid.value = result.energy
+      return
+    }
+
     grid.value = renderDiagram({
       ctx,
       width: W.value,
@@ -350,6 +382,7 @@ export function useCellularAutomaton() {
       noiseP: noise.value / 100,
       initialRow: buildInitialRowForState(),
     })
+    energyGrid.value = []
   }
 
   function clampExtraRows(value: number): number {
@@ -403,6 +436,28 @@ export function useCellularAutomaton() {
     const newHeight = grid.value.length + addRows
     canvas.width = W.value * CA_PIXEL_SIZE
     canvas.height = newHeight * CA_PIXEL_SIZE
+
+    if (
+      mode.value === 'descendants' &&
+      energyEnabled.value &&
+      energyGrid.value.length === grid.value.length
+    ) {
+      const result = extendDiagramEnergy({
+        ctx,
+        width: W.value,
+        config,
+        emission: emission as number[],
+        collisionMode: collisionModeValue,
+        collisionFixed: collisionFixedValue,
+        previousStates: grid.value,
+        previousEnergy: energyGrid.value,
+        extraRows: addRows,
+      })
+      grid.value = result.states
+      energyGrid.value = result.energy
+      H.value = newHeight
+      return
+    }
 
     grid.value = extendDiagram({
       ctx,
@@ -603,6 +658,39 @@ export function useCellularAutomaton() {
     setCollisionFixed(parseInt(raw, 10))
   }
 
+  function setEnergyEnabled(value: boolean): void {
+    energyEnabled.value = value
+    if (mode.value !== 'descendants') {
+      setMode('descendants')
+      return
+    }
+    refresh()
+  }
+
+  function clampInitialEnergy(value: number): number {
+    return Math.max(1, Math.min(1000000, Math.floor(value)))
+  }
+
+  function setInitialEnergy(value: number): void {
+    if (isNaN(value)) {
+      return
+    }
+    initialEnergy.value = clampInitialEnergy(value)
+  }
+
+  function onInitialEnergyInput(event: Event): void {
+    const raw = inputValue(event)
+    if (raw === '') {
+      return
+    }
+    const nextValue = parseInt(raw, 10)
+    if (isNaN(nextValue)) {
+      return
+    }
+    setInitialEnergy(nextValue)
+    run()
+  }
+
   function setInit(nextInit: InitMode): void {
     init.value = nextInit
     run()
@@ -755,6 +843,8 @@ export function useCellularAutomaton() {
     emissionStatusText,
     collisionMode,
     collisionFixed,
+    energyEnabled,
+    initialEnergy,
     seedInputValue,
     seedLabelText,
     seedStatusText,
@@ -789,6 +879,8 @@ export function useCellularAutomaton() {
     setCollisionMode,
     setCollisionFixed,
     onCollisionFixedInput,
+    setEnergyEnabled,
+    onInitialEnergyInput,
     onLegendCellClick,
     initialize: init3AndRefresh,
     captureRuleSnapshot,
