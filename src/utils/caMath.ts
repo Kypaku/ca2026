@@ -1,7 +1,7 @@
 // Pure, framework-agnostic math helpers for totalistic / local-rule
 // one-dimensional cellular automata with an arbitrary number of states.
 
-import type { CaConfig, RuleParts, RuleSnapshot } from '../types/ca'
+import type { CaConfig, CollisionMode, RuleParts, RuleSnapshot } from '../types/ca'
 
 /** Clamps an arbitrary value to one of the supported state counts (2-5), defaulting to 3. */
 export function normalizeStateCount(value: unknown): number {
@@ -12,6 +12,17 @@ export function normalizeStateCount(value: unknown): number {
 /** Builds classifier `parts` (rule identity) from a saved rule snapshot. */
 export function partsFromSnapshot(snapshot: RuleSnapshot): RuleParts {
   const stateCount = normalizeStateCount(snapshot.stateCount)
+  if (snapshot.mode === 'descendants') {
+    return {
+      stateCount,
+      mode: 'descendants',
+      code: 0,
+      localRule: '',
+      emissionRule: snapshot.emissionRule || defaultEmissionRule(stateCount),
+      collisionMode: snapshot.collisionMode || DEFAULT_COLLISION_MODE,
+      collisionFixed: clampCollisionFixed(snapshot.collisionFixed ?? DEFAULT_COLLISION_FIXED, stateCount),
+    }
+  }
   return snapshot.mode === 'totalistic'
     ? { stateCount, mode: 'totalistic', code: snapshot.code || 0, localRule: '' }
     : { stateCount, mode: 'local', code: 0, localRule: snapshot.localRule || '' }
@@ -228,6 +239,119 @@ export function codeToLocalRule(code: number, states: number): string {
   for (let i = 0; i < config.localDigits; i++) {
     rule += String(remaining % config.states)
     remaining = Math.floor(remaining / config.states)
+  }
+  return rule
+}
+
+// ---------------------------------------------------------------------------
+// "Descendants" mode helpers.
+//
+// Here the rule is inverted: instead of 3 parents producing 1 child, each
+// LIVE parent cell EMITS 3 children into the next row. The background state 0
+// emits nothing, so only the non-background states (1..states-1) carry an
+// emission triple. The emission rule maps a live parent's state to the states
+// it drops into positions (k-1, k, k+1):
+//
+//   emission length = 3 * (states - 1), indexed  (state - 1) * 3 + slot
+//   (slot 0=left, 1=center, 2=right); state 0 always emits (0, 0, 0).
+//
+// A child cell k therefore receives up to 3 colliding contributions:
+//   a = right-child emitted by the left parent  (row[k-1])
+//   b = center-child emitted by the center parent (row[k])
+//   c = left-child emitted by the right parent   (row[k+1])
+// When 2+ of them are live they collide and are merged by the collision mode
+// (sum mod states / random one of them / a fixed constant); a single live
+// contribution passes straight through and no contributions leave the cell 0.
+// ---------------------------------------------------------------------------
+
+/** Default collision merge strategy for descendants mode. */
+export const DEFAULT_COLLISION_MODE: CollisionMode = 'sum'
+
+/** Default constant used when the collision mode is 'fixed'. */
+export const DEFAULT_COLLISION_FIXED = 1
+
+/** Clamps a 'fixed' collision value into the valid state range for `states`. */
+export function clampCollisionFixed(value: unknown, states: number): number {
+  const count = normalizeStateCount(states)
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < 0) {
+    return 0
+  }
+  return Math.min(count - 1, n)
+}
+
+/** Number of digits in a descendants emission rule for `states` states. */
+export function emissionDigits(states: number): number {
+  return 3 * (normalizeStateCount(states) - 1)
+}
+
+/** Default emission: every live parent spawns 3 copies of its own state. */
+export function defaultEmissionRule(states: number): string {
+  const count = normalizeStateCount(states)
+  let rule = ''
+  for (let s = 1; s < count; s++) {
+    rule += String(s).repeat(3)
+  }
+  return rule
+}
+
+/** Sanitizes + pads an emission rule string to the full `3 * (states - 1)` length. */
+export function sanitizeEmissionRule(rule: string, states: number): string {
+  const count = normalizeStateCount(states)
+  return padRight(sanitizeStateString(rule, emissionDigits(count), count), emissionDigits(count))
+}
+
+/** Parses an emission rule string into a numeric lookup of length `3 * (states - 1)`. */
+export function emissionTable(rule: string, states: number): number[] {
+  const clean = sanitizeEmissionRule(rule, states)
+  const table: number[] = []
+  for (let i = 0; i < clean.length; i++) {
+    table.push(clean.charCodeAt(i) - 48)
+  }
+  return table
+}
+
+/** Advances the emission digit at `index` to the next state (wrapping). */
+export function cycleEmissionDigit(rule: string, states: number, index: number): string {
+  const clean = sanitizeEmissionRule(rule, states)
+  if (index < 0 || index >= clean.length) {
+    return clean
+  }
+  const next = (clean.charCodeAt(index) - 48 + 1) % normalizeStateCount(states)
+  return clean.slice(0, index) + String(next) + clean.slice(index + 1)
+}
+
+/** A uniformly random emission rule (each of `3 * (states - 1)` digits random). */
+export function randomEmissionRule(states: number): string {
+  const count = normalizeStateCount(states)
+  let rule = ''
+  for (let i = 0; i < emissionDigits(count); i++) {
+    rule += String(Math.floor(Math.random() * count))
+  }
+  return rule
+}
+
+/**
+ * Highest numeric code in the descendants emission space for `states`:
+ * `states ^ (3 * (states - 1)) - 1`. Stays well within double precision for
+ * all supported state counts (largest is 5^12 ≈ 2.44e8), so unlike local rules
+ * the emission space can always be sampled precisely as numeric codes.
+ */
+export function descendantsCodeMax(states: number): number {
+  const count = normalizeStateCount(states)
+  return Math.pow(count, emissionDigits(count)) - 1
+}
+
+/** Converts a numeric descendants code into its emission digit string (low-order first). */
+export function codeToEmissionRule(code: number, states: number): string {
+  const count = normalizeStateCount(states)
+  const digits = emissionDigits(count)
+  const normalized = Math.max(0, Math.min(descendantsCodeMax(count), Math.floor(code)))
+  let rule = ''
+  let remaining = normalized
+  for (let i = 0; i < digits; i++) {
+    rule += String(remaining % count)
+    remaining = Math.floor(remaining / count)
   }
   return rule
 }

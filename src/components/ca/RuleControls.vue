@@ -11,9 +11,16 @@ const props = defineProps<{
   ruleLabelText: string
   ruleStatusText: string
   ruleInputValue: string
+  emissionLabelText: string
+  emissionStatusText: string
+  emissionInputValue: string
+  collisionMode: string
+  collisionFixed: number
 }>()
 
 const ruleMaxLength = computed(() => Math.pow(props.stateCount, 3))
+const emissionMaxLength = computed(() => 3 * (props.stateCount - 1))
+const maxFixed = computed(() => props.stateCount - 1)
 
 const emit = defineEmits([
   'set-state-count',
@@ -22,6 +29,9 @@ const emit = defineEmits([
   'code-number-input',
   'code-number-change',
   'rule-input',
+  'emission-input',
+  'set-collision-mode',
+  'collision-fixed-input',
   'random-rule',
   'regen',
 ])
@@ -46,6 +56,7 @@ const emit = defineEmits([
       <span class="ca-seg">
         <button type="button" :class="{ on: mode === 'totalistic' }" @click="emit('set-mode', 'totalistic')">totalistic</button>
         <button type="button" :class="{ on: mode === 'local' }" @click="emit('set-mode', 'local')">by templates</button>
+        <button type="button" :class="{ on: mode === 'descendants' }" @click="emit('set-mode', 'descendants')">by descendants</button>
       </span>
     
       <div class="ca-panel mt-2">
@@ -88,6 +99,42 @@ const emit = defineEmits([
           />
           <div class="ca-meter">{{ ruleStatusText }}</div>
         </div>
+
+        <template v-if="mode === 'descendants'">
+          <div class="ca-control">
+            <label class="ca-label">{{ emissionLabelText }}</label>
+            <input
+              class="ca-input"
+              type="text"
+              inputmode="numeric"
+              :maxlength="emissionMaxLength"
+              spellcheck="false"
+              :value="emissionInputValue"
+              @input="emit('emission-input', $event)"
+            />
+            <div class="ca-meter">{{ emissionStatusText }}</div>
+          </div>
+          <div class="ca-control">
+            <label class="ca-label">Collision: how 2+ signals landing on one cell are merged</label>
+            <div class="ca-inline">
+              <span class="ca-seg">
+                <button type="button" :class="{ on: collisionMode === 'sum' }" @click="emit('set-collision-mode', 'sum')">sum mod {{ stateCount }}</button>
+                <button type="button" :class="{ on: collisionMode === 'random' }" @click="emit('set-collision-mode', 'random')">random</button>
+                <button type="button" :class="{ on: collisionMode === 'fixed' }" @click="emit('set-collision-mode', 'fixed')">fixed</button>
+              </span>
+              <input
+                v-if="collisionMode === 'fixed'"
+                class="ca-number ca-number--sm"
+                type="number"
+                min="0"
+                :max="maxFixed"
+                step="1"
+                :value="collisionFixed"
+                @input="emit('collision-fixed-input', $event)"
+              />
+            </div>
+          </div>
+        </template>
       </div>
     
       <button type="button" @click="emit('random-rule')">random rule</button>

@@ -52,12 +52,19 @@ export function normalizeRule(rule: unknown): TaggedRule | null {
 
 /** Canonical string identifying "the same rule" regardless of init/seed/height. */
 export function signatureOf(parts: RuleParts): string {
+  if (parts.mode === 'descendants') {
+    return `${parts.stateCount}|descendants|${parts.emissionRule || ''}|${parts.collisionMode || 'sum'}|${parts.collisionFixed ?? 0}`
+  }
   return parts.mode === 'totalistic'
     ? `${parts.stateCount}|totalistic|${parts.code}`
     : `${parts.stateCount}|local|${parts.localRule}`
 }
 
 export function defaultRuleName(parts: RuleParts): string {
+  if (parts.mode === 'descendants') {
+    const collision = parts.collisionMode === 'fixed' ? `fixed ${parts.collisionFixed ?? 0}` : parts.collisionMode || 'sum'
+    return `${parts.stateCount} states, descendants ${parts.emissionRule || ''} (${collision})`
+  }
   return parts.mode === 'totalistic'
     ? `${parts.stateCount} states, totalistic ${parts.code}`
     : `${parts.stateCount} states, local ${parts.localRule}`

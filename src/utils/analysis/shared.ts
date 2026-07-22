@@ -1,6 +1,14 @@
 // Shared low-level helpers used across the analysis modules: a seedable PRNG,
 // a stable string hash (to derive per-rule seeds) and the initial-row builder.
-import type { AnalysisInitMode } from '../../types/ca'
+import type { AnalysisInitMode, CollisionMode, RuleMode, RuleParts, RuleSnapshot } from '../../types/ca'
+import {
+  codeToLocalRule,
+  codeToEmissionRule,
+  buildLocalRuleFromTotalistic,
+  clampCollisionFixed,
+  DEFAULT_COLLISION_MODE,
+  DEFAULT_COLLISION_FIXED,
+} from '../caMath'
 
 /** Small, fast, seedable PRNG so classification is reproducible per rule. */
 export function mulberry32(seed: number): () => number {
@@ -39,4 +47,75 @@ export function buildInitialRow(
     row[i] = Math.floor(rand() * states)
   }
   return row
+}
+
+/**
+ * A single candidate rule for a batch scan. `code` is the sequential/random
+ * index the scan walks; the optional overrides let a caller supply a rule
+ * string directly (used for large local spaces sampled as digit strings). For
+ * descendants mode `collisionMode`/`collisionFixed` carry the user's selected
+ * collision strategy, held fixed while the emission rule is what varies.
+ */
+export interface RuleDescriptor {
+  stateCount: number
+  mode: RuleMode
+  code: number
+  localRule?: string
+  collisionMode?: CollisionMode
+  collisionFixed?: number
+}
+
+/** Builds the classifier `RuleParts` for one scanned candidate rule. */
+export function buildAnalysisParts(d: RuleDescriptor): RuleParts {
+  if (d.mode === 'descendants') {
+    return {
+      stateCount: d.stateCount,
+      mode: 'descendants',
+      code: 0,
+      localRule: '',
+      emissionRule: codeToEmissionRule(d.code, d.stateCount),
+      collisionMode: d.collisionMode || DEFAULT_COLLISION_MODE,
+      collisionFixed: clampCollisionFixed(d.collisionFixed ?? DEFAULT_COLLISION_FIXED, d.stateCount),
+    }
+  }
+  return d.mode === 'totalistic'
+    ? { stateCount: d.stateCount, mode: 'totalistic', code: d.code, localRule: '' }
+    : {
+        stateCount: d.stateCount,
+        mode: 'local',
+        code: 0,
+        localRule: d.localRule ?? codeToLocalRule(d.code, d.stateCount),
+      }
+}
+
+/** Builds the reusable `RuleSnapshot` for one scanned candidate rule. */
+export function buildAnalysisSnapshot(d: RuleDescriptor, init: AnalysisInitMode, height: number): RuleSnapshot {
+  const normInit: 'single' | 'random' = init === 'single' ? 'single' : 'random'
+  if (d.mode === 'descendants') {
+    return {
+      stateCount: d.stateCount,
+      mode: 'descendants',
+      code: 0,
+      localRule: '',
+      emissionRule: codeToEmissionRule(d.code, d.stateCount),
+      collisionMode: d.collisionMode || DEFAULT_COLLISION_MODE,
+      collisionFixed: clampCollisionFixed(d.collisionFixed ?? DEFAULT_COLLISION_FIXED, d.stateCount),
+      init: normInit,
+      seed: '',
+      height,
+    }
+  }
+  const localRule =
+    d.mode === 'local'
+      ? d.localRule ?? codeToLocalRule(d.code, d.stateCount)
+      : buildLocalRuleFromTotalistic(d.code, d.stateCount)
+  return {
+    stateCount: d.stateCount,
+    mode: d.mode,
+    code: d.mode === 'totalistic' ? d.code : 0,
+    localRule,
+    init: normInit,
+    seed: '',
+    height,
+  }
 }

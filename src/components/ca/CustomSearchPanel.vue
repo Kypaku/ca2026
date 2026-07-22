@@ -117,7 +117,7 @@ watch(
 )
 
 const modeLabel = computed(() =>
-  props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
+  props.mode === 'totalistic' ? 'totalistic codes' : props.mode === 'descendants' ? 'descendants rules' : 'local rules'
 )
 
 // The tag that found rules are attached to. Defaults to the built-in customSearch

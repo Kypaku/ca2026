@@ -1,16 +1,12 @@
 import { ref, reactive, computed } from 'vue'
 import { classifyRule } from '../utils/caAnalysis'
-import {
-  codeToLocalRule,
-  buildLocalRuleFromTotalistic,
-  pickRandomCodes,
-  pickRandomLocalRules,
-  localCodeExceedsSafeInteger,
-} from '../utils/caMath'
+import { pickRandomCodes, pickRandomLocalRules, localCodeExceedsSafeInteger } from '../utils/caMath'
+import { buildAnalysisParts, buildAnalysisSnapshot } from '../utils/analysis/shared'
 import type {
   AnalysisInitMode,
   AnalysisRuleInput,
   AnalysisSourceMode,
+  CollisionMode,
   RuleMode,
   RuleParts,
   RuleSnapshot,
@@ -23,6 +19,8 @@ export type ApplyAnalysis = (tag: string, parts: RuleParts, snapshot: RuleSnapsh
 export interface AnalysisStartParams {
   stateCount: number
   mode: RuleMode
+  collisionMode?: CollisionMode
+  collisionFixed?: number
   from: number
   to: number
   width: number
@@ -55,35 +53,6 @@ export function useRuleAnalysis() {
   let frame: number | null = null
 
   const progress = computed(() => (total.value ? Math.round((done.value / total.value) * 100) : 0))
-
-  function buildParts(stateCount: number, mode: RuleMode, code: number, localRule?: string): RuleParts {
-    return mode === 'totalistic'
-      ? { stateCount, mode: 'totalistic', code, localRule: '' }
-      : { stateCount, mode: 'local', code: 0, localRule: localRule ?? codeToLocalRule(code, stateCount) }
-  }
-
-  function buildSnapshot(
-    stateCount: number,
-    mode: RuleMode,
-    code: number,
-    init: AnalysisInitMode,
-    height: number,
-    localRuleOverride?: string
-  ): RuleSnapshot {
-    const localRule =
-      mode === 'local'
-        ? localRuleOverride ?? codeToLocalRule(code, stateCount)
-        : buildLocalRuleFromTotalistic(code, stateCount)
-    return {
-      stateCount,
-      mode,
-      code: mode === 'totalistic' ? code : 0,
-      localRule,
-      init: init === 'single' ? 'single' : 'random',
-      seed: '',
-      height,
-    }
-  }
 
   function stop(): void {
     running.value = false
@@ -142,8 +111,16 @@ export function useRuleAnalysis() {
           const localRuleOverride = randomLocalRules ? randomLocalRules[index] : undefined
           const code = randomCodes ? randomCodes[index] : from + index
           currentCode.value = code
-          parts = buildParts(stateCount, mode, code, localRuleOverride)
-          snapshot = buildSnapshot(stateCount, mode, code, init, height, localRuleOverride)
+          const descriptor = {
+            stateCount,
+            mode,
+            code,
+            localRule: localRuleOverride,
+            collisionMode: params.collisionMode,
+            collisionFixed: params.collisionFixed,
+          }
+          parts = buildAnalysisParts(descriptor)
+          snapshot = buildAnalysisSnapshot(descriptor, init, height)
         }
         const { tag } = classifyRule(parts, { width, height, init, chaosFlux, sparseFill, windowFraction })
         counts[tag] = (counts[tag] || 0) + 1

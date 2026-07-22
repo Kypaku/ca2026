@@ -27,7 +27,7 @@ const sparseFillPercent = ref(Math.round(ANALYSIS_DEFAULTS.sparseFill * 100))
 const windowFraction = ref(ANALYSIS_DEFAULTS.windowFraction)
 
 const modeLabel = computed(() =>
-  props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
+  props.mode === 'totalistic' ? 'totalistic codes' : props.mode === 'descendants' ? 'descendants rules' : 'local rules'
 )
 
 const countList = computed(() =>

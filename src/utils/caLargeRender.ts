@@ -16,7 +16,7 @@
 // down-scaling (N cells per pixel), the latter being what large fields need.
 import { CA_COLORS } from '../constants/ca'
 import { evolveStep } from './caRender'
-import type { CaConfig } from '../types/ca'
+import type { CaConfig, CollisionMode, RuleMode } from '../types/ca'
 
 // Above roughly this per-side size a browser can no longer *display* the
 // resulting <img> (decode limit), even though the PNG file itself is valid and
@@ -30,9 +30,12 @@ export const MAX_PREVIEW_SIDE = 16384
  */
 export interface RenderContext {
   config: CaConfig
-  mode: 'totalistic' | 'local'
+  mode: RuleMode
   sums: number[] | null
   explicitRule: string
+  emission?: number[] | null
+  collisionMode?: CollisionMode
+  collisionFixed?: number
   noiseP: number
   /** Builds the initial row for the requested width using the current init/seed. */
   makeInitialRow: (width: number) => Uint8Array
@@ -44,9 +47,12 @@ export interface PngDiagramParams {
   /** Number of generations (rows). */
   height: number
   config: CaConfig
-  mode: 'totalistic' | 'local'
+  mode: RuleMode
   sums: number[] | null
   explicitRule: string
+  emission?: number[] | null
+  collisionMode?: CollisionMode
+  collisionFixed?: number
   noiseP: number
   initialRow: Uint8Array
   /** Scale factor (>= 1). Its meaning depends on `downscale`. */
@@ -138,7 +144,8 @@ export async function renderDiagramToPngBlob(params: PngDiagramParams): Promise<
   if (typeof CompressionStream === 'undefined') {
     throw new Error('this browser lacks CompressionStream (needed for direct PNG export)')
   }
-  const { width, height, config, mode, sums, explicitRule, noiseP, initialRow, cellSize, downscale } = params
+  const { width, height, config, mode, sums, explicitRule, emission, collisionMode, collisionFixed, noiseP, initialRow, cellSize, downscale } =
+    params
   const factor = Math.max(1, Math.floor(cellSize))
   const { outWidth, outHeight } = outputSize(width, height, factor, downscale)
 
@@ -186,7 +193,7 @@ export async function renderDiagramToPngBlob(params: PngDiagramParams): Promise<
         await writer.write(scan.slice())
       }
     }
-    row = evolveStep(row, width, config, mode, sums, explicitRule, noiseP)
+    row = evolveStep(row, width, config, mode, sums, explicitRule, noiseP, emission, collisionMode, collisionFixed)
   }
   await writer.close()
   const compressed = await compressedPromise

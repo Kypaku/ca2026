@@ -1,7 +1,24 @@
 // Shared TypeScript types for the cellular-automaton explorer.
 
-/** Rule interpretation: totalistic (neighbour-sum) or explicit local lookup. */
-export type RuleMode = 'totalistic' | 'local'
+/**
+ * Rule interpretation:
+ *  - `totalistic`: next cell = f(neighbour sum) — 3 parents produce 1 child.
+ *  - `local`: next cell = f(left, center, right) — 3 parents produce 1 child.
+ *  - `descendants`: the inverse — every parent cell (by its own state) EMITS 3
+ *    children into the next row (positions k-1, k, k+1) via an emission rule, and
+ *    the 3 contributions colliding on each child position are merged by a
+ *    user-defined collision rule. "1 parent produces 3" + collision resolution.
+ */
+export type RuleMode = 'totalistic' | 'local' | 'descendants'
+
+/**
+ * How the descendants mode resolves a collision when 2+ live signals land on
+ * the same child cell:
+ *  - `sum`: final = (a + b + c) mod states.
+ *  - `random`: final = one of the colliding (non-zero) signals, picked at random.
+ *  - `fixed`: final = a user-chosen constant state.
+ */
+export type CollisionMode = 'sum' | 'random' | 'fixed'
 
 /** Initial-row generation strategy for the interactive canvas. */
 export type InitMode = 'random' | 'single' | 'custom'
@@ -49,6 +66,12 @@ export interface RuleParts {
   mode: RuleMode
   code: number
   localRule: string
+  /** Descendants mode: `3 * (stateCount - 1)` digits, each live state → (left, center, right) child. */
+  emissionRule?: string
+  /** Descendants mode: how colliding signals on a child cell are merged. */
+  collisionMode?: CollisionMode
+  /** Descendants mode: the constant state used when `collisionMode === 'fixed'`. */
+  collisionFixed?: number
 }
 
 /** Everything needed to reproduce a rule together with its display context. */
@@ -57,6 +80,12 @@ export interface RuleSnapshot {
   mode: RuleMode
   code: number
   localRule: string
+  /** Descendants mode: each live state → (left, center, right) child emission table. */
+  emissionRule?: string
+  /** Descendants mode: how colliding signals on a child cell are merged. */
+  collisionMode?: CollisionMode
+  /** Descendants mode: the constant state used when `collisionMode === 'fixed'`. */
+  collisionFixed?: number
   init: InitMode
   seed: string
   height: number

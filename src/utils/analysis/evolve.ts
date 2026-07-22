@@ -1,6 +1,14 @@
 // Evolves a rule and returns the last `keep` rows of the space-time diagram.
-import { getConfig, totalisticTable, padRight, sanitizeStateString, normalizeStateCount } from '../caMath'
-import type { AnalysisInitMode, EvolveOptions, EvolveResult, RuleParts } from '../../types/ca'
+import {
+  getConfig,
+  totalisticTable,
+  padRight,
+  sanitizeStateString,
+  normalizeStateCount,
+  emissionTable,
+  clampCollisionFixed,
+} from '../caMath'
+import type { AnalysisInitMode, CollisionMode, EvolveOptions, EvolveResult, RuleParts } from '../../types/ca'
 import { buildInitialRow, hashString, mulberry32 } from './shared'
 
 /**
@@ -17,11 +25,22 @@ export function evolveRows(parts: RuleParts, options: EvolveOptions): EvolveResu
 
   const sums = parts.mode === 'totalistic' ? totalisticTable(parts.code, states) : null
   const ruleStr =
-    parts.mode === 'totalistic'
-      ? null
-      : padRight(sanitizeStateString(parts.localRule, config.localDigits, states), config.localDigits)
+    parts.mode === 'local'
+      ? padRight(sanitizeStateString(parts.localRule, config.localDigits, states), config.localDigits)
+      : null
 
-  const seedSource = parts.mode === 'totalistic' ? parts.code >>> 0 : hashString(parts.localRule || '')
+  // Descendants: emission triple per live state + collision resolution matching
+  // whatever the user selected in the rule settings.
+  const emission = parts.mode === 'descendants' ? emissionTable(parts.emissionRule || '', states) : null
+  const collisionMode: CollisionMode = parts.collisionMode || 'sum'
+  const collisionFixed = clampCollisionFixed(parts.collisionFixed ?? 0, states)
+
+  const seedSource =
+    parts.mode === 'totalistic'
+      ? parts.code >>> 0
+      : parts.mode === 'descendants'
+        ? hashString(`${parts.emissionRule || ''}|${collisionMode}|${collisionFixed}`)
+        : hashString(parts.localRule || '')
   const rand = mulberry32(Math.imul(seedSource + 1, 2654435761))
 
   let row = buildInitialRow(width, states, init, rand)
@@ -40,11 +59,64 @@ export function evolveRows(parts: RuleParts, options: EvolveOptions): EvolveResu
       const left = row[(k - 1 + width) % width]
       const center = row[k]
       const right = row[(k + 1) % width]
-      next[k] = sums
-        ? sums[left + center + right]
-        : (ruleStr as string).charCodeAt(left * states * states + center * states + right) - 48
+      if (sums) {
+        next[k] = sums[left + center + right]
+      } else if (ruleStr) {
+        next[k] = ruleStr.charCodeAt(left * states * states + center * states + right) - 48
+      } else {
+        const em = emission as number[]
+        const a = left === 0 ? 0 : em[(left - 1) * 3 + 2]
+        const b = center === 0 ? 0 : em[(center - 1) * 3 + 1]
+        const c = right === 0 ? 0 : em[(right - 1) * 3 + 0]
+        next[k] = resolveCollision(a, b, c, states, collisionMode, collisionFixed, rand)
+      }
     }
     row = next
   }
   return { rows, states }
+}
+
+/**
+ * Merges up to three emitted contributions (0 = no emission) into a single
+ * child state, mirroring the interactive renderer. No live signal → 0; a single
+ * live signal passes through; 2+ live signals collide and are resolved by
+ * `mode`: sum → (a+b+c) mod states, random → a random state (seeded here for
+ * reproducible analysis), fixed → `fixed`.
+ */
+function resolveCollision(
+  a: number,
+  b: number,
+  c: number,
+  states: number,
+  mode: CollisionMode,
+  fixed: number,
+  rand: () => number
+): number {
+  let live = 0
+  let single = 0
+  if (a) {
+    live++
+    single = a
+  }
+  if (b) {
+    live++
+    single = b
+  }
+  if (c) {
+    live++
+    single = c
+  }
+  if (live === 0) {
+    return 0
+  }
+  if (live === 1) {
+    return single
+  }
+  if (mode === 'sum') {
+    return (a + b + c) % states
+  }
+  if (mode === 'fixed') {
+    return fixed
+  }
+  return Math.floor(rand() * states)
 }

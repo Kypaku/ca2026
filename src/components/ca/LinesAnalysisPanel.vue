@@ -40,7 +40,7 @@ const targetTag = ref<string>(LINES_TAG)
 const targetTagCount = computed(() => props.tagCounts[targetTag.value.trim()] || 0)
 
 const modeLabel = computed(() =>
-  props.mode === 'totalistic' ? 'totalistic codes' : 'local rules'
+  props.mode === 'totalistic' ? 'totalistic codes' : props.mode === 'descendants' ? 'descendants rules' : 'local rules'
 )
 
 function clampInt(value: number, min: number, max: number, fallback: number): number {

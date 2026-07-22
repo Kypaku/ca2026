@@ -14,10 +14,20 @@ import {
   localCodeExceedsSafeInteger,
   cycleLocalRuleDigit,
   cycleTotalisticDigit,
+  defaultEmissionRule,
+  sanitizeEmissionRule,
+  emissionTable,
+  emissionDigits,
+  cycleEmissionDigit,
+  randomEmissionRule,
+  descendantsCodeMax,
+  clampCollisionFixed,
+  DEFAULT_COLLISION_MODE,
+  DEFAULT_COLLISION_FIXED,
 } from '../utils/caMath'
 import { buildInitialRow, extendDiagram, renderDiagram } from '../utils/caRender'
 import type { RenderContext } from '../utils/caLargeRender'
-import type { CaConfig, InitMode, LegendItem, RuleMode, RuleSnapshot } from '../types/ca'
+import type { CaConfig, CollisionMode, InitMode, LegendItem, RuleMode, RuleSnapshot } from '../types/ca'
 
 /** Reads the current value out of an input `Event` target. */
 function inputValue(event: Event): string {
@@ -45,9 +55,25 @@ export function useCellularAutomaton() {
   const localRuleDirty = reactive<Record<number, boolean>>({ 2: false, 3: false, 4: false, 5: false })
   const seedValues = reactive<Record<number, string>>({ 2: '', 3: '', 4: '', 5: '' })
 
+  // Descendants-mode rules, kept per state count like the local/totalistic ones.
+  const emissionRules = reactive<Record<number, string>>({
+    2: defaultEmissionRule(2),
+    3: defaultEmissionRule(3),
+    4: defaultEmissionRule(4),
+    5: defaultEmissionRule(5),
+  })
+  // Collision resolution is a single strategy (+ constant for the 'fixed' mode),
+  // shared across state counts rather than a per-state lookup table.
+  const collisionMode = ref<CollisionMode>(DEFAULT_COLLISION_MODE)
+  const collisionFixed = ref(DEFAULT_COLLISION_FIXED)
+
   const ruleInputValue = ref('')
   const seedInputValue = ref('')
   const codeValue = ref(1155)
+
+  const emissionInputValue = ref('')
+  const emissionLabelText = ref('')
+  const emissionStatusText = ref('')
 
   const sliderLabelText = ref('')
   const codeMax = ref(2186)
@@ -66,7 +92,12 @@ export function useCellularAutomaton() {
   // For local rules with 4+ states the code space (states^(states^3)) overflows
   // that precision, so the code slider/input would show a bogus float in
   // scientific notation — hide it and let the rule string input be the editor.
-  const showCodeControl = computed(() => !(mode.value === 'local' && localCodeExceedsSafeInteger(stateCount.value)))
+  // Descendants mode has no single numeric code at all, so it hides it too.
+  const showCodeControl = computed(
+    () =>
+      mode.value === 'totalistic' ||
+      (mode.value === 'local' && !localCodeExceedsSafeInteger(stateCount.value))
+  )
 
   const heightStatusText = computed(() => `${H.value} rows`)
   const widthStatusText = computed(() => `${W.value} cells per row`)
@@ -95,8 +126,48 @@ export function useCellularAutomaton() {
     return padRight(sanitizeStateString(ruleInputValue.value, config.localDigits, stateCount.value), config.localDigits)
   }
 
+  function currentEmissionRule(): string {
+    return sanitizeEmissionRule(emissionInputValue.value, stateCount.value)
+  }
+
+  function currentEmissionTable(): number[] {
+    return emissionTable(emissionInputValue.value, stateCount.value)
+  }
+
+  function currentCollisionFixed(): number {
+    return clampCollisionFixed(collisionFixed.value, stateCount.value)
+  }
+
+  function storeCurrentEmission(): void {
+    emissionRules[stateCount.value] = sanitizeStateString(
+      emissionInputValue.value,
+      emissionDigits(stateCount.value),
+      stateCount.value
+    )
+  }
+
+  function updateDescendantsStatus(): void {
+    const states = stateCount.value
+    const emLen = emissionDigits(states)
+    const emClean = sanitizeStateString(emissionInputValue.value, emLen, states)
+    if (emissionInputValue.value !== emClean) {
+      emissionInputValue.value = emClean
+    }
+    emissionRules[states] = emClean
+    // Keep the fixed-collision value inside the valid range for the state count.
+    collisionFixed.value = clampCollisionFixed(collisionFixed.value, states)
+    emissionLabelText.value = `Emission: ${emLen} digits, each live state (1..${states - 1}) → (left, center, right) child`
+    emissionStatusText.value =
+      emClean.length === emLen
+        ? `${emLen}/${emLen} positions filled`
+        : `${emClean.length}/${emLen} positions, the rest are treated as 0`
+  }
+
   function activeCodeMax(): number {
     const config = activeConfig()
+    if (mode.value === 'descendants') {
+      return descendantsCodeMax(stateCount.value)
+    }
     return mode.value === 'totalistic' ? config.totalisticMax : Math.pow(config.states, config.localDigits) - 1
   }
 
@@ -220,6 +291,16 @@ export function useCellularAutomaton() {
       for (let sum = 0; sum < config.totalisticDigits; sum++) {
         items.push({ color: CA_COLORS[sums[sum]], caption: `S=${sum}` })
       }
+    } else if (mode.value === 'descendants') {
+      keyText.value = 'descendants: live parent state -> (L,C,R) children, collisions merged by the collision rule'
+      const emission = currentEmissionTable()
+      const slots = ['L', 'C', 'R']
+      for (let s = 1; s < config.states; s++) {
+        for (let slot = 0; slot < 3; slot++) {
+          const out = emission[(s - 1) * 3 + slot]
+          items.push({ color: CA_COLORS[out], caption: `${s}${slots[slot]}->${out}` })
+        }
+      }
     } else {
       keyText.value = 'local left-center-right map -> new state'
       const rule = currentLocalRule()
@@ -251,6 +332,9 @@ export function useCellularAutomaton() {
     const config = activeConfig()
     const sums = mode.value === 'totalistic' ? totalisticTable(totalisticCodes[stateCount.value], stateCount.value) : null
     const explicitRule = mode.value === 'local' ? currentLocalRule() : ''
+    const emission = mode.value === 'descendants' ? currentEmissionTable() : null
+    const collisionModeValue = collisionMode.value
+    const collisionFixedValue = currentCollisionFixed()
 
     grid.value = renderDiagram({
       ctx,
@@ -260,6 +344,9 @@ export function useCellularAutomaton() {
       mode: mode.value,
       sums,
       explicitRule,
+      emission,
+      collisionMode: collisionModeValue,
+      collisionFixed: collisionFixedValue,
       noiseP: noise.value / 100,
       initialRow: buildInitialRowForState(),
     })
@@ -309,6 +396,9 @@ export function useCellularAutomaton() {
     const config = activeConfig()
     const sums = mode.value === 'totalistic' ? totalisticTable(totalisticCodes[stateCount.value], stateCount.value) : null
     const explicitRule = mode.value === 'local' ? currentLocalRule() : ''
+    const emission = mode.value === 'descendants' ? currentEmissionTable() : null
+    const collisionModeValue = collisionMode.value
+    const collisionFixedValue = currentCollisionFixed()
 
     const newHeight = grid.value.length + addRows
     canvas.width = W.value * CA_PIXEL_SIZE
@@ -321,6 +411,9 @@ export function useCellularAutomaton() {
       mode: mode.value,
       sums,
       explicitRule,
+      emission,
+      collisionMode: collisionModeValue,
+      collisionFixed: collisionFixedValue,
       noiseP: noise.value / 100,
       previousRows: grid.value,
       extraRows: addRows,
@@ -331,6 +424,7 @@ export function useCellularAutomaton() {
   function refresh(): void {
     updateStateUI()
     updateRuleStatus()
+    updateDescendantsStatus()
     codeValue.value = activeCodeValue()
     updateSeedStatus()
     drawLegend()
@@ -431,6 +525,11 @@ export function useCellularAutomaton() {
     if (mode.value === 'totalistic') {
       totalisticCodes[stateCount.value] = cycleTotalisticDigit(totalisticCodes[stateCount.value], stateCount.value, index)
       syncLocalRule(false)
+    } else if (mode.value === 'descendants') {
+      const nextEmission = cycleEmissionDigit(currentEmissionRule(), stateCount.value, index)
+      emissionInputValue.value = nextEmission
+      emissionRules[stateCount.value] = nextEmission
+      updateDescendantsStatus()
     } else {
       const nextRule = cycleLocalRuleDigit(currentLocalRule(), stateCount.value, index)
       ruleInputValue.value = nextRule
@@ -446,6 +545,11 @@ export function useCellularAutomaton() {
     if (mode.value === 'totalistic') {
       totalisticCodes[stateCount.value] = Math.floor(Math.random() * (config.totalisticMax + 1))
       syncLocalRule(false)
+    } else if (mode.value === 'descendants') {
+      const randomEmission = randomEmissionRule(stateCount.value)
+      emissionInputValue.value = randomEmission
+      emissionRules[stateCount.value] = randomEmission
+      updateDescendantsStatus()
     } else {
       let randomRule = ''
       for (let i = 0; i < config.localDigits; i++) {
@@ -459,13 +563,65 @@ export function useCellularAutomaton() {
     refresh()
   }
 
+  function onEmissionInput(event: Event): void {
+    emissionInputValue.value = inputValue(event)
+    storeCurrentEmission()
+    updateDescendantsStatus()
+    if (mode.value !== 'descendants') {
+      setMode('descendants')
+      return
+    }
+    refresh()
+  }
+
+  function setCollisionMode(nextMode: CollisionMode): void {
+    collisionMode.value = nextMode
+    if (mode.value !== 'descendants') {
+      setMode('descendants')
+      return
+    }
+    refresh()
+  }
+
+  function setCollisionFixed(value: number): void {
+    if (isNaN(value)) {
+      return
+    }
+    collisionFixed.value = clampCollisionFixed(value, stateCount.value)
+    if (mode.value !== 'descendants') {
+      setMode('descendants')
+      return
+    }
+    refresh()
+  }
+
+  function onCollisionFixedInput(event: Event): void {
+    const raw = inputValue(event)
+    if (raw === '') {
+      return
+    }
+    setCollisionFixed(parseInt(raw, 10))
+  }
+
   function setInit(nextInit: InitMode): void {
     init.value = nextInit
     run()
   }
 
+  function syncDescendantsInputs(): void {
+    const states = stateCount.value
+    if (!emissionRules[states]) {
+      emissionRules[states] = defaultEmissionRule(states)
+    }
+    emissionInputValue.value = emissionRules[states]
+    collisionFixed.value = clampCollisionFixed(collisionFixed.value, states)
+  }
+
   function setMode(nextMode: RuleMode): void {
     mode.value = nextMode
+    if (nextMode === 'descendants') {
+      syncDescendantsInputs()
+    }
     refresh()
   }
 
@@ -475,9 +631,11 @@ export function useCellularAutomaton() {
     }
     storeCurrentRule()
     storeCurrentSeed()
+    storeCurrentEmission()
     stateCount.value = nextCount
     ruleInputValue.value = localRules[nextCount]
     seedInputValue.value = seedValues[nextCount]
+    syncDescendantsInputs()
     syncLocalRule(false)
     refresh()
   }
@@ -487,17 +645,22 @@ export function useCellularAutomaton() {
       localRules[count] = buildLocalRuleFromTotalistic(totalisticCodes[count], count)
     })
     ruleInputValue.value = localRules[stateCount.value]
+    emissionInputValue.value = emissionRules[stateCount.value]
     refresh()
   }
 
   /** Captures everything needed to reproduce the current rule/init/height later. */
   function captureRuleSnapshot(): RuleSnapshot {    storeCurrentRule()
     storeCurrentSeed()
+    storeCurrentEmission()
     return {
       stateCount: stateCount.value,
       mode: mode.value,
       code: totalisticCodes[stateCount.value],
       localRule: localRules[stateCount.value],
+      emissionRule: emissionRules[stateCount.value],
+      collisionMode: collisionMode.value,
+      collisionFixed: currentCollisionFixed(),
       init: init.value,
       seed: seedValues[stateCount.value],
       height: H.value,
@@ -526,9 +689,17 @@ export function useCellularAutomaton() {
     localRules[nextStateCount] =
       snapshot.localRule || buildLocalRuleFromTotalistic(totalisticCodes[nextStateCount], nextStateCount)
     localRuleDirty[nextStateCount] = true
+    emissionRules[nextStateCount] = sanitizeEmissionRule(
+      snapshot.emissionRule || defaultEmissionRule(nextStateCount),
+      nextStateCount
+    )
+    collisionMode.value = snapshot.collisionMode || DEFAULT_COLLISION_MODE
+    collisionFixed.value = clampCollisionFixed(snapshot.collisionFixed ?? DEFAULT_COLLISION_FIXED, nextStateCount)
     seedInputValue.value = seedValues[nextStateCount]
     ruleInputValue.value = localRules[nextStateCount]
-    mode.value = snapshot.mode === 'local' ? 'local' : 'totalistic'
+    emissionInputValue.value = emissionRules[nextStateCount]
+    mode.value =
+      snapshot.mode === 'local' || snapshot.mode === 'descendants' ? snapshot.mode : 'totalistic'
     refresh()
   }
 
@@ -544,11 +715,15 @@ export function useCellularAutomaton() {
     const sums =
       mode.value === 'totalistic' ? totalisticTable(totalisticCodes[stateCount.value], stateCount.value) : null
     const explicitRule = mode.value === 'local' ? currentLocalRule() : ''
+    const emission = mode.value === 'descendants' ? currentEmissionTable() : null
     return {
       config,
       mode: mode.value,
       sums,
       explicitRule,
+      emission,
+      collisionMode: collisionMode.value,
+      collisionFixed: currentCollisionFixed(),
       noiseP: noise.value / 100,
       makeInitialRow: (width: number) =>
         buildInitialRow(width, config, stateCount.value, init.value, seedInputValue.value),
@@ -575,6 +750,11 @@ export function useCellularAutomaton() {
     ruleInputValue,
     ruleLabelText,
     ruleStatusText,
+    emissionInputValue,
+    emissionLabelText,
+    emissionStatusText,
+    collisionMode,
+    collisionFixed,
     seedInputValue,
     seedLabelText,
     seedStatusText,
@@ -605,6 +785,10 @@ export function useCellularAutomaton() {
     onRuleInput,
     onSeedInput,
     onRandomRule,
+    onEmissionInput,
+    setCollisionMode,
+    setCollisionFixed,
+    onCollisionFixedInput,
     onLegendCellClick,
     initialize: init3AndRefresh,
     captureRuleSnapshot,

@@ -53,6 +53,11 @@ const {
   ruleInputValue,
   ruleLabelText,
   ruleStatusText,
+  emissionInputValue,
+  emissionLabelText,
+  emissionStatusText,
+  collisionMode,
+  collisionFixed,
   seedInputValue,
   seedLabelText,
   seedStatusText,
@@ -83,6 +88,10 @@ const {
   onLegendCellClick,
   onSeedInput,
   onRandomRule,
+  onEmissionInput,
+  setCollisionMode,
+  setCollisionFixed,
+  onCollisionFixedInput,
   initialize,
   captureRuleSnapshot,
   applyRuleSnapshot,
@@ -284,6 +293,8 @@ function onRunAnalysis({
   startAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     from,
     to,
     width,
@@ -343,6 +354,8 @@ function onRunFieldsAnalysis({
   startFieldsAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     from,
     to,
     width,
@@ -432,6 +445,8 @@ function onRunGlidersAnalysis({
   startGlidersAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     from,
     to,
     width,
@@ -510,6 +525,8 @@ function onRunCustomSearch({
   startCustomSearch({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     from,
     to,
     width,
@@ -588,6 +605,8 @@ function onRunLinesAnalysis({
   startLinesAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     from,
     to,
     width,
@@ -664,6 +683,8 @@ function onRunChaosAnalysis({
   startChaosAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     from,
     to,
     width,
@@ -731,6 +752,8 @@ function onRunSubAnalysis({
   startSubAnalysis({
     stateCount: stateCount.value,
     mode: mode.value,
+    collisionMode: collisionMode.value,
+    collisionFixed: collisionFixed.value,
     sourceMode,
     from,
     to,
@@ -780,12 +803,20 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
         :rule-label-text="ruleLabelText"
         :rule-status-text="ruleStatusText"
         :rule-input-value="ruleInputValue"
+        :emission-label-text="emissionLabelText"
+        :emission-status-text="emissionStatusText"
+        :emission-input-value="emissionInputValue"
+        :collision-mode="collisionMode"
+        :collision-fixed="collisionFixed"
         @set-state-count="setStateCount"
         @set-mode="setMode"
         @code-slider-input="onCodeSliderInput"
         @code-number-input="onCodeNumberInput"
         @code-number-change="refresh"
         @rule-input="onRuleInput"
+        @emission-input="onEmissionInput"
+        @set-collision-mode="setCollisionMode"
+        @collision-fixed-input="onCollisionFixedInput"
         @random-rule="onRandomRule"
         @regen="run"
       />
@@ -824,7 +855,7 @@ function onSelectSubRule(snapshot: RuleSnapshot): void {
       :state-count="stateCount"
       :key-text="keyText"
       :legend-items="legendItems"
-      :legend-mode-local="mode === 'local'"
+      :legend-mode-local="mode !== 'totalistic'"
       @cell-click="onLegendCellClick"
     />
 
